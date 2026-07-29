@@ -1,7 +1,7 @@
 import type { SimConfig } from '../sim'
 import { Simulation, deriveRng, getRanking, getWinnerTeamId, isGameOver, randInt } from '../sim'
 import type { BotKind, DecisionSource, UnitDecision } from '../agents'
-import { decideDecisionTreeCommands, decideScriptedBotCommands, decideSurvivalCommands } from '../agents'
+import { decideExpanderBotCommands, decideGuardianBotCommands, decideRaiderBotCommands } from '../agents'
 import { decisionsToLogEntry, type LoggedDecision } from '../app/replay'
 import type { ActorCriticModel } from './network'
 import { createPolicyDecisionSource } from './policyDecisionSource'
@@ -10,9 +10,9 @@ import type { EvalMatchup, EvalReport } from './types'
 /** `src/agents`の各bot実装をそのまま対戦相手として使う。`BotKind`は閉じたunionなので
  * `replayRecording.ts`もこのマップを再利用する。 */
 export const BASELINE_BOTS: Record<BotKind, DecisionSource> = {
-  scripted: decideScriptedBotCommands,
-  decisionTree: decideDecisionTreeCommands,
-  survival: decideSurvivalCommands,
+  expander: decideExpanderBotCommands,
+  guardian: decideGuardianBotCommands,
+  raider: decideRaiderBotCommands,
 }
 
 /** `policyTeamId`のユニットは`policySource`、それ以外全チームは`opponentSource`に振り分ける。
@@ -89,7 +89,7 @@ export interface EvalOptions {
 }
 
 /**
- * 学習済みポリシーを既存の各baseline bot(`scripted`/`decisionTree`/`survival`)と対戦させ、
+ * 学習済みポリシーを既存の各baseline bot(`expander`/`guardian`/`raider`)と対戦させ、
  * 勝率・平均順位を報告する。報酬整形を経た`episodeReturn`は解釈しづらいので、進捗の実質的な
  * シグナルはこちら。ポリシーは常に決定的(argmax)行動で評価する(§11.4「報酬は最初は疎な順位
  * 報酬中心に」の実質的な検証instrument)。

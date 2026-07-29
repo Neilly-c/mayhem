@@ -46,18 +46,19 @@ Gym/PettingZoo (Parallel)-style wrapper around `sim/`, one agent per surviving u
 - `env.ts` — `Env` class: `reset`/`step` over the wrapped `Simulation`
 - `observation.ts` — builds each agent's `Observation` (local hex patch, `patchHops` radius)
 - `visibility.ts` — visible-enemy computation
-- `actions.ts` — `ActionInput` decoding and action masking. `decodeAction`'s move=0 decodes to `{ type: 'moveTo', node: selfNode }` (hold position), not `{ type: 'idle' }` — `sim/movement.ts`'s idle is a random-explore fallback for uncommanded units (see `scriptedBot.ts`), not a "stay put" primitive, so an RL agent selecting the naive "idle" index could never actually hold a node long enough to satisfy `territory.ts`'s `captureTicks` for taking an enemy-owned node. `moveTo` targeting the unit's own current node is the same "hold" idiom `decisionTreeBot.ts`/`survivalBot.ts` already use.
+- `actions.ts` — `ActionInput` decoding and action masking. `decodeAction`'s move=0 decodes to `{ type: 'moveTo', node: selfNode }` (hold position), not `{ type: 'idle' }` — `sim/movement.ts`'s idle is a random-explore fallback for uncommanded units, not a "stay put" primitive, so an RL agent selecting the naive "idle" index could never actually hold a node long enough to satisfy `territory.ts`'s `captureTicks` for taking an enemy-owned node. `moveTo` targeting the unit's own current node is the same "hold" idiom `raiderBot.ts` already uses while engaging.
 - `rewards.ts` / `rewardConfig.ts` — per-tick and terminal (winner bonus) reward shaping
 - `types.ts` — `Observation`, `ActionInput`, `StepResult`, etc.
 
 ### `src/agents/` — bot policies
 
-Non-RL decision sources that can be routed per team via `createTeamRoutedDecisionSource` (`teamAssignment.ts`, `BotKind`: `'scripted' | 'decisionTree' | 'survival'`):
+Non-RL decision sources that can be routed per team via `createTeamRoutedDecisionSource` (`teamAssignment.ts`, `BotKind`: `'expander' | 'guardian' | 'raider'`). ユーザー要望: 陣営の目的がマップ占領率(§`sim/rules.ts`の`teamTerritoryRate`/`getTerritoryRanking`)になったことに合わせて刷新した3つの簡易ヒューリスティックbot(旧`scriptedBot`/`decisionTreeBot`/`survivalBot`は全廃)。`assignment`に無いチームは`defaultBotKindForTeam`(`BOT_KINDS`を`teamId % 3`で巡回)を既定bot とする — UIの per-team ドロップダウンの初期表示もこれに合わせる。
 
-- `scriptedBot.ts` — simple scripted heuristic bot: idle unless outside the ring, attacks the nearest in-range visible enemy
-- `decisionTreeBot.ts` — configurable decision-tree bot (`DecisionTreeConfig`): ring retreat → flee-when-low-HP → engage-in-range → chase → expand territory
-- `survivalBot.ts` — configurable survival-priority bot (`SurvivalBotConfig`): ring retreat → heal-on-own-territory-when-low-HP → advance on and hold a stronghold picked from the ring's disclosed next center weighted by elevation (terrain advantage), claiming nearby unclaimed nodes once there. Never chases; only counter-attacks enemies already in range.
-- `movementHelpers.ts` — shared movement-decision utilities (`pickBestDirection`)
+- `expanderBot.ts` — 拡張型: 戦闘を避け、`findNearestUnclaimedNode`(中立優先BFS)でひたすら未所有ノードを塗り続ける。反撃のみ行い追撃はしない。
+- `guardianBot.ts` — 防衛型(`GuardianBotConfig`): リング退避 → 低HP時は自陣へ帰還して回復 → 敵の攻撃範囲に入られた自陣ノードがあればそこへ急行して防衛 → それ以外は拡張。奪った領地を守ることを最優先する。
+- `raiderBot.ts` — 攻撃型: リング退避 → 射程内の敵とは静止して交戦 → 視認中(射程外)の敵がいれば追撃 → いなければ拡張。低HPで退く判断を持たない攻めっ気重視の性格。
+- `movementHelpers.ts` — 3botが共有する移動判断ユーティリティ(`pickBestDirection`, `findNearestSafeNode`, `findNearestUnclaimedNode`, `findNearestOwnNode`)
+- `types.ts` — `UnitDecision`, `DecisionSource`
 
 ### `src/train/` — PPO self-play training pipeline (Node-only, excluded from the browser build)
 

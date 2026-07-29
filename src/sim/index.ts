@@ -26,5 +26,12 @@ export type { CombatIntent } from './combat'
 export { resolveTerritory } from './territory'
 export { initRingState, tickRing, applySlipDamage } from './ring'
 export { applyRegen } from './regen'
-export { isGameOver, getWinnerTeamId, getRanking } from './rules'
+export {
+  isGameOver,
+  getWinnerTeamId,
+  getRanking,
+  teamTerritoryRate,
+  getTerritoryRanking,
+  lastTeamCountdownRemaining,
+} from './rules'
 export { Simulation } from './sim'

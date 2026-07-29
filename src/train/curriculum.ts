@@ -6,14 +6,10 @@ export interface CurriculumStage {
   mapRadius: number
 }
 
-/** ユーザー要望による本パイプラインの規定学習規模: teamCount=6, unitsPerTeam=3。
- * §11.6のカリキュラム推奨(小R→大R)に従い、mapRadiusだけを段階的に広げる。 */
 export function defaultCurriculum(): CurriculumStage[] {
   return [
     { afterIteration: 0, mapRadius: 8 },
-    { afterIteration: 50, mapRadius: 14 },
-    { afterIteration: 150, mapRadius: 20 },
-    { afterIteration: 300, mapRadius: 25 },
+    { afterIteration: 50, mapRadius: 15 },
   ]
 }
 

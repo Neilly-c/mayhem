@@ -20,11 +20,25 @@ const ELEVATION_LOW: readonly [number, number, number] = [6, 10, 22]
 const ELEVATION_HIGH: readonly [number, number, number] = [220, 235, 255]
 
 export function elevationColor(elevation: number): string {
-  const t = Math.min(1, Math.max(0, elevation))
-  const r = Math.round(ELEVATION_LOW[0] + (ELEVATION_HIGH[0] - ELEVATION_LOW[0]) * t)
-  const g = Math.round(ELEVATION_LOW[1] + (ELEVATION_HIGH[1] - ELEVATION_LOW[1]) * t)
-  const b = Math.round(ELEVATION_LOW[2] + (ELEVATION_HIGH[2] - ELEVATION_LOW[2]) * t)
+  const [r, g, b] = elevationRgb(elevation)
   return `rgb(${r},${g},${b})`
+}
+
+function elevationRgb(elevation: number): [number, number, number] {
+  const t = Math.min(1, Math.max(0, elevation))
+  return [
+    Math.round(ELEVATION_LOW[0] + (ELEVATION_HIGH[0] - ELEVATION_LOW[0]) * t),
+    Math.round(ELEVATION_LOW[1] + (ELEVATION_HIGH[1] - ELEVATION_LOW[1]) * t),
+    Math.round(ELEVATION_LOW[2] + (ELEVATION_HIGH[2] - ELEVATION_LOW[2]) * t),
+  ]
+}
+
+/** ユーザー要望: 斜め見下ろし表示(§draw.tsのobliqueView)で、持ち上がったノードの「側面」を
+ * 塗るための陰影色。立体的なライティングまでは付けず、単純に頂面の色を暗くするだけ。 */
+export function elevationSkirtColor(elevation: number): string {
+  const [r, g, b] = elevationRgb(elevation)
+  const shade = 0.5
+  return `rgb(${Math.round(r * shade)},${Math.round(g * shade)},${Math.round(b * shade)})`
 }
 
 export const WALL_COLOR = '#222222'

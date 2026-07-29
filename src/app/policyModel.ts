@@ -54,7 +54,7 @@ function argmaxMaskedCategorical(logits: tf.Tensor2D, mask: tf.Tensor2D): tf.Ten
 }
 
 /**
- * 学習済みモデルを、他のbot(`scriptedBot`/`decisionTreeBot`/`survivalBot`)と同じ`DecisionSource`
+ * 学習済みモデルを、他のbot(`expanderBot`/`guardianBot`/`raiderBot`)と同じ`DecisionSource`
  * 形状で使えるようにする橋渡し(ブラウザ版)。`src/train/policyDecisionSource.ts`のNode版と
  * ロジックは同一だが、`ActorCriticModel`ではなくロード直後の生の`tf.LayersModel`を直接叩く。
  * 常に決定的(argmax)行動選択 — ライブ観戦での再現性を優先し、学習時のような確率的サンプリング

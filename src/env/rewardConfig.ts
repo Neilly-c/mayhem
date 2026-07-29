@@ -17,13 +17,16 @@ function defaultRankBonus(teamCount: number): number[] {
 export function defaultRewardConfig(teamCount: number): RewardConfig {
   return {
     damageDealtCoef: 0.01,
-    damageTakenCoef: -0.03,
+    damageTakenCoef: -0.01,
     killBonus: 1.0,
-    deathPenalty: -3.0,
+    deathPenalty: -2.0,
     territoryCoef: 0.02,
     survivalReward: 0.001,
     slipDamageCoef: -0.03,
     rankBonus: defaultRankBonus(teamCount),
+    // world距離1単位ぶん次のリングへ近づいた場合の報酬。baseSpeed(既定0.1)相当の前進で
+    // 約0.01/tick — survivalReward(0.001/tick)より一段強く、しかし戦闘系の係数を圧倒しない程度。
+    nextRingShapingCoef: 0.1,
   }
 }
 

@@ -51,7 +51,7 @@ function makeState(seed: number, config: SimConfig, units: UnitState[]): GameSta
 }
 
 const expectedVectorLength = (config: SimConfig): number => {
-  const selfLen = 2 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 6 + 3
+  const selfLen = 2 + 1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 1 + 6 + 3
   const allyLen = 4 * (config.unitsPerTeam - 1)
   const enemyLen = 5 * config.maxVisibleEnemies
   const k = config.patchHops
@@ -96,8 +96,8 @@ describe('observation', () => {
     const nodeIndex = buildNodeIndex(state)
 
     const obs = buildObservation(state, self, [], nodeIndex)
-    // self block is 18 long, then 4 floats per ally slot, sorted by ascending unit id (1 then 2)
-    const allyBlock = obs.vector.slice(18, 18 + 8)
+    // self block is 21 long, then 4 floats per ally slot, sorted by ascending unit id (1 then 2)
+    const allyBlock = obs.vector.slice(21, 21 + 8)
     expect(allyBlock[2]).toBeCloseTo(40 / config.unitHP, 10) // deadAlly hp
     expect(allyBlock[3]).toBe(0) // deadAlly alive flag
     expect(allyBlock[6]).toBeCloseTo(77 / config.unitHP, 10) // aliveAlly hp
@@ -122,7 +122,7 @@ describe('observation', () => {
     expect(obs.vector.every((v) => Number.isFinite(v))).toBe(true)
     // Every possible cell within radius 1 must have been generated, so at least SOME patch cells
     // (radius 2-3 ring) must be off-map padding: [elevation=0, wall=1, self=0, enemy=0, neutral=1].
-    const patchStart = 18 + 4 * (config.unitsPerTeam - 1) + 5 * config.maxVisibleEnemies
+    const patchStart = 21 + 4 * (config.unitsPerTeam - 1) + 5 * config.maxVisibleEnemies
     const patchLen = 5 * (1 + 3 * config.patchHops * (config.patchHops + 1))
     const patch = obs.vector.slice(patchStart, patchStart + patchLen)
     const cells: number[][] = []
@@ -137,16 +137,17 @@ describe('observation', () => {
     const nodeIndex = buildNodeIndex(state)
 
     const onNodeObs = buildObservation(state, onNodeUnit, [], nodeIndex)
-    // self block: [relX,relY,ringRadius,ticksUntilShrink,inRing,elevation,hp,onNode,progress, dir x6, owner x3]
-    expect(onNodeObs.vector[7]).toBe(1) // onNode flag
-    expect(onNodeObs.vector[8]).toBe(0) // progress
-    expect(onNodeObs.vector.slice(9, 15)).toEqual([0, 0, 0, 0, 0, 0]) // no direction while stationary
+    // self block: [relX,relY,ringRadius,ticksUntilShrink,inRing,relNextX,relNextY,nextRingRadius,
+    // elevation,hp,onNode,progress, dir x6, owner x3]
+    expect(onNodeObs.vector[10]).toBe(1) // onNode flag
+    expect(onNodeObs.vector[11]).toBe(0) // progress
+    expect(onNodeObs.vector.slice(12, 18)).toEqual([0, 0, 0, 0, 0, 0]) // no direction while stationary
 
     const neighborNode = state.neighbors[0][0]
     const midEdgeUnit: UnitState = { ...onNodeUnit, pos: { from: 0, to: neighborNode, progress: 0.4 } }
     const midEdgeObs = buildObservation(state, midEdgeUnit, [], nodeIndex)
-    expect(midEdgeObs.vector[7]).toBe(0)
-    expect(midEdgeObs.vector[8]).toBeCloseTo(0.4, 10)
-    expect(midEdgeObs.vector.slice(9, 15).filter((v) => v === 1)).toHaveLength(1)
+    expect(midEdgeObs.vector[10]).toBe(0)
+    expect(midEdgeObs.vector[11]).toBeCloseTo(0.4, 10)
+    expect(midEdgeObs.vector.slice(12, 18).filter((v) => v === 1)).toHaveLength(1)
   })
 })

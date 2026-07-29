@@ -14,7 +14,7 @@ export interface PolicyDecisionSourceOptions {
 }
 
 /**
- * 学習済みポリシーを、他のbot(`scriptedBot`/`decisionTreeBot`/`survivalBot`)と同じ`DecisionSource`
+ * 学習済みポリシーを、他のbot(`expanderBot`/`guardianBot`/`raiderBot`)と同じ`DecisionSource`
  * 形状で使えるようにする橋渡し。envが内部で使っているのと同じ純粋関数
  * (`buildObservation`/`buildActionMask`/`decodeAction`)をそのまま再利用するため、学習時と
  * ライブ実行時とで観測・行動デコードの実装が二重化しない。evaluate.tsでの対戦評価に使うほか、

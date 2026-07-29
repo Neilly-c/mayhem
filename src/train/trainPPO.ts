@@ -5,7 +5,7 @@
  *   --numEnvs --rolloutLength --iterations --seed
  *   --gamma --lambda --clipRatio --epochs --minibatchSize --valueLossCoef --entropyCoef --learningRate
  *   --evalEvery --evalEpisodes --checkpointEvery --checkpointDir --keepTopNCheckpoints --resumeFrom --logPath
- *   --replayEvery --replayDir --replayOpponent scripted|decisionTree|survival|selfPlay
+ *   --replayEvery --replayDir --replayOpponent expander|guardian|raider|selfPlay
  *     (ユーザー要望: 世代ごとのリプレイをブラウザで再生できるよう、既定で`public/replays`へ
  *     書き出す — `npm run dev`実行中ならそのまま`/replays/manifest.json`としてfetchできる。
  *     `selfPlay`はbaseline botとの対戦ではなく、全チームがそのチェックポイントのポリシーに
@@ -71,7 +71,7 @@ function defaultTrainConfig(): TrainConfig {
     keepTopNCheckpoints: 3,
     replayEveryIterations: 20,
     replayDir: path.join('public', 'replays'),
-    replayOpponent: 'scripted',
+    replayOpponent: 'expander',
   }
 }
 
@@ -218,9 +218,9 @@ async function main(): Promise<void> {
         iteration: iteration + 1,
         seedBase: trainConfig.seed + iteration,
         matchups: [
-          { opponentBotKind: 'scripted', episodes: trainConfig.evalEpisodesPerMatchup },
-          { opponentBotKind: 'decisionTree', episodes: trainConfig.evalEpisodesPerMatchup },
-          { opponentBotKind: 'survival', episodes: trainConfig.evalEpisodesPerMatchup },
+          { opponentBotKind: 'expander', episodes: trainConfig.evalEpisodesPerMatchup },
+          { opponentBotKind: 'guardian', episodes: trainConfig.evalEpisodesPerMatchup },
+          { opponentBotKind: 'raider', episodes: trainConfig.evalEpisodesPerMatchup },
         ],
       })
       logger.log({ event: 'eval', ...evalReport })

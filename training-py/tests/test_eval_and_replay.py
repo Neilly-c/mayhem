@@ -51,18 +51,18 @@ def test_evaluate_and_record_replay_against_a_real_exported_checkpoint():
         meta = make_checkpoint_meta(1, network_config, TINY_SIM_CONFIG)
         (checkpoint_dir / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
 
-        report = evaluate_checkpoint(checkpoint_dir, iteration=1, seed_base=1, episodes=1, opponents=("scripted",))
-        assert report["matchups"][0]["opponentBotKind"] == "scripted"
+        report = evaluate_checkpoint(checkpoint_dir, iteration=1, seed_base=1, episodes=1, opponents=("expander",))
+        assert report["matchups"][0]["opponentBotKind"] == "expander"
         assert 0 <= report["matchups"][0]["winRate"] <= 1
 
         replay_dir = tmp_path / "replays"
-        entry = record_replay_for_checkpoint(checkpoint_dir, iteration=1, seed=1, opponent="scripted", replay_dir=str(replay_dir))
-        assert entry["filename"] == "iter-1-vs-scripted.json"
+        entry = record_replay_for_checkpoint(checkpoint_dir, iteration=1, seed=1, opponent="expander", replay_dir=str(replay_dir))
+        assert entry["filename"] == "iter-1-vs-expander.json"
         assert (replay_dir / entry["filename"]).exists()
         assert (replay_dir / "manifest.json").exists()
 
         second_entry = record_replay_for_checkpoint(
-            checkpoint_dir, iteration=2, seed=1, opponent="scripted", replay_dir=str(replay_dir)
+            checkpoint_dir, iteration=2, seed=1, opponent="expander", replay_dir=str(replay_dir)
         )
         deleted = prune_replays(replay_dir, keep_iterations={2})
         assert deleted == [entry["filename"]]

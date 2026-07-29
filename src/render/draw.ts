@@ -1,5 +1,13 @@
-import type { GameState, UnitState, Vec2 } from '../sim'
-import { axialKey, nodesInRadius, unitFacingVector, unitWorldPos, world } from '../sim'
+import type { GameState, NodeState, UnitState, Vec2 } from '../sim'
+import {
+  axialKey,
+  lastTeamCountdownRemaining,
+  nodesInRadius,
+  unitElevation,
+  unitFacingVector,
+  unitWorldPos,
+  world,
+} from '../sim'
 import type { Camera } from './camera'
 import { worldToScreen } from './camera'
 import {
@@ -14,6 +22,7 @@ import {
   VISION_RANGE_COLOR,
   WALL_COLOR,
   elevationColor,
+  elevationSkirtColor,
   teamColor,
 } from './colors'
 
@@ -22,6 +31,35 @@ export interface DrawOptions {
   showAttackRange: boolean
   showPatch: boolean
   selectedUnitId: number | null
+  /** ユーザー要望: 標高差を可視化する斜め見下ろし表示への切り替え。透視投影は使わず、標高に
+   * 比例した画面Y方向オフセットだけを加える平行投影(遠近感の演出は不要 = perspective: none相当)。 */
+  obliqueView: boolean
+}
+
+/** 標高1.0(最大)のノードが画面上で持ち上がる高さ(ワールド単位。worldToScreenのscaleでpx化される)。 */
+const OBLIQUE_HEIGHT_WORLD = 1.1
+
+/** ユーザー要望: 壁は高さ0として扱い、斜め表示で視界を邪魔しないようにする。 */
+function obliqueElevation(node: NodeState): number {
+  return node.passable ? node.elevation : 0
+}
+
+function obliqueYOffset(camera: Camera, elevation: number): number {
+  return -elevation * OBLIQUE_HEIGHT_WORLD * camera.scale
+}
+
+/** ノードの表示位置。obliqueView時のみ標高ぶん画面上に持ち上げる。 */
+function nodeScreen(camera: Camera, node: NodeState, oblique: boolean): Vec2 {
+  const base = worldToScreen(camera, world(node))
+  if (!oblique) return base
+  return { x: base.x, y: base.y + obliqueYOffset(camera, obliqueElevation(node)) }
+}
+
+/** ユニットの表示位置。ユニットは常に通行可能ノード上にいるため壁の高さ0特例は不要。 */
+function unitScreen(camera: Camera, state: GameState, unit: UnitState, oblique: boolean): Vec2 {
+  const base = worldToScreen(camera, unitWorldPos(state, unit))
+  if (!oblique) return base
+  return { x: base.x, y: base.y + obliqueYOffset(camera, unitElevation(state, unit)) }
 }
 
 const UNIT_RADIUS_FRACTION = 0.35
@@ -60,19 +98,22 @@ export function drawFrame(
 ): void {
   const canvas = ctx.canvas
   ctx.clearRect(0, 0, canvas.width, canvas.height)
+  const oblique = options.obliqueView
 
-  drawNodes(ctx, state, camera)
+  drawNodes(ctx, state, camera, oblique)
   // ユーザー要望: リング外は個々のノードにではなく、圏外全体に一様な赤の重ね塗りをする。
   // ノードを描いた後に重ねることで、地形の上に途切れなく赤が乗る(ノード円の下に隠れない)。
+  // リング自体は地形と紐付かない抽象的な安全圏なので、oblique表示でも標高追従はさせない
+  // (境界の円周上で毎点の地形標高を辿るのは過剰な複雑化になるため、意図的な簡略化)。
   drawRingDanger(ctx, state, camera)
   drawRingBoundaries(ctx, state, camera)
   if (options.showPatch && options.selectedUnitId !== null) {
-    drawObservationPatch(ctx, state, camera, options.selectedUnitId)
+    drawObservationPatch(ctx, state, camera, options.selectedUnitId, oblique)
   }
-  drawAttackLines(ctx, state, camera)
-  drawUnits(ctx, state, camera, options.selectedUnitId)
+  drawAttackLines(ctx, state, camera, oblique)
+  drawUnits(ctx, state, camera, options.selectedUnitId, oblique)
   if (options.selectedUnitId !== null) {
-    drawUnitOverlays(ctx, state, camera, options)
+    drawUnitOverlays(ctx, state, camera, options, oblique)
   }
   // ユーザー要望: tick・リング段階をマップの端にオーバーレイ表示する。最前面に乗せるため最後に描く。
   drawStatusOverlay(ctx, state)
@@ -81,19 +122,40 @@ export function drawFrame(
 const STATUS_OVERLAY_PADDING = 8
 const STATUS_OVERLAY_LINE_HEIGHT = 18
 const STATUS_OVERLAY_MARGIN = 10
+const STATUS_TEXT_COLOR = '#6fe8ff'
+/** ユーザー要望: 残り1チームになってからの終了カウントダウンを警告色(オレンジ)で目立たせる。 */
+const STATUS_COUNTDOWN_COLOR = '#ff9800'
+
+interface StatusSegment {
+  text: string
+  color: string
+}
 
 function drawStatusOverlay(ctx: CanvasRenderingContext2D, state: GameState): void {
   const ring = state.ring
-  const lines = [
-    `Tick ${state.tick}`,
-    `Round ${ring.stage} (${ring.phase}, ${ring.phaseTicks}t) r=${ring.activeRadius.toFixed(1)}`,
+  const countdown = lastTeamCountdownRemaining(state)
+
+  const tickLine: StatusSegment[] = [{ text: `Tick ${state.tick}`, color: STATUS_TEXT_COLOR }]
+  if (countdown !== null) {
+    tickLine.push({ text: `  残り${countdown}tick`, color: STATUS_COUNTDOWN_COLOR })
+  }
+
+  const lines: StatusSegment[][] = [
+    tickLine,
+    [
+      {
+        text: `Round ${ring.stage} (${ring.phase}, ${ring.phaseTicks}t) r=${ring.activeRadius.toFixed(1)}`,
+        color: STATUS_TEXT_COLOR,
+      },
+    ],
   ]
 
   ctx.save()
   ctx.font = '13px monospace'
   ctx.textBaseline = 'top'
 
-  const textWidth = Math.max(...lines.map((line) => ctx.measureText(line).width))
+  const lineWidth = (line: StatusSegment[]) => line.reduce((sum, seg) => sum + ctx.measureText(seg.text).width, 0)
+  const textWidth = Math.max(...lines.map(lineWidth))
   const boxWidth = textWidth + STATUS_OVERLAY_PADDING * 2
   const boxHeight = lines.length * STATUS_OVERLAY_LINE_HEIGHT + STATUS_OVERLAY_PADDING * 2 - 4
   const x = STATUS_OVERLAY_MARGIN
@@ -105,24 +167,66 @@ function drawStatusOverlay(ctx: CanvasRenderingContext2D, state: GameState): voi
   ctx.lineWidth = 1
   ctx.strokeRect(x, y, boxWidth, boxHeight)
 
-  ctx.fillStyle = '#6fe8ff'
   lines.forEach((line, i) => {
-    ctx.fillText(line, x + STATUS_OVERLAY_PADDING, y + STATUS_OVERLAY_PADDING + i * STATUS_OVERLAY_LINE_HEIGHT)
+    let segX = x + STATUS_OVERLAY_PADDING
+    const lineY = y + STATUS_OVERLAY_PADDING + i * STATUS_OVERLAY_LINE_HEIGHT
+    for (const seg of line) {
+      ctx.fillStyle = seg.color
+      ctx.fillText(seg.text, segX, lineY)
+      segX += ctx.measureText(seg.text).width
+    }
   })
   ctx.restore()
 }
 
-function drawNodes(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera): void {
-  const circumradius = Math.max(1, camera.scale * HEX_CIRCUMRADIUS_FRACTION)
-  for (const node of state.nodes) {
-    const screen = worldToScreen(camera, world(node))
-    hexPath(ctx, screen, circumradius)
-    ctx.fillStyle = node.passable ? elevationColor(node.elevation) : WALL_COLOR
+function drawNodeFace(ctx: CanvasRenderingContext2D, node: NodeState, screen: Vec2, circumradius: number): void {
+  hexPath(ctx, screen, circumradius)
+  ctx.fillStyle = node.passable ? elevationColor(node.elevation) : WALL_COLOR
+  ctx.fill()
+  if (node.passable && node.owner !== null) {
+    ctx.fillStyle = teamColor(node.owner, 0.35)
     ctx.fill()
-    if (node.passable && node.owner !== null) {
-      ctx.fillStyle = teamColor(node.owner, 0.35)
+  }
+}
+
+// ノードの地図配列は1エピソード中不変(標高・座標は固定、owner/captureProgressのみ可変)なので、
+// obliqueViewの描画順(ペインターズアルゴリズム: 奥=world.y昇順→手前の順)は配列の参照が変わらない
+// 限り作り直す必要がない。マップ半径が大きいと数千ノードのソートになるため、毎フレーム再ソートを
+// 避けるためのキャッシュ。
+let obliqueOrderCache: { nodes: readonly NodeState[]; order: NodeState[] } | null = null
+
+function obliqueDrawOrder(nodes: readonly NodeState[]): NodeState[] {
+  if (obliqueOrderCache?.nodes === nodes) return obliqueOrderCache.order
+  const order = [...nodes].sort((a, b) => world(a).y - world(b).y)
+  obliqueOrderCache = { nodes, order }
+  return order
+}
+
+function drawNodes(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera, oblique: boolean): void {
+  const circumradius = Math.max(1, camera.scale * HEX_CIRCUMRADIUS_FRACTION)
+
+  if (!oblique) {
+    for (const node of state.nodes) {
+      drawNodeFace(ctx, node, worldToScreen(camera, world(node)), circumradius)
+    }
+    return
+  }
+
+  // ユーザー要望: 標高差を可視化する斜め見下ろし表示。奥(画面上で上)のノードから先に描き、
+  // 手前(下)のノードが持ち上がった地形と正しく重なるようにする(ペインターズアルゴリズム)。
+  // 持ち上げ有りのノードだけ、頂面の下に地表(base位置)の暗い側面色を先に敷いて「崖」を表現する
+  // (立体的な陰影までは付けない、単純な塗り分けのみ)。
+  for (const node of obliqueDrawOrder(state.nodes)) {
+    const base = worldToScreen(camera, world(node))
+    const elevation = obliqueElevation(node)
+    const top = { x: base.x, y: base.y + obliqueYOffset(camera, elevation) }
+
+    if (elevation > 0) {
+      hexPath(ctx, base, circumradius)
+      ctx.fillStyle = elevationSkirtColor(node.elevation)
       ctx.fill()
     }
+    drawNodeFace(ctx, node, top, circumradius)
   }
 }
 
@@ -185,7 +289,7 @@ function drawRingBoundaries(ctx: CanvasRenderingContext2D, state: GameState, cam
   ctx.restore()
 }
 
-function drawAttackLines(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera): void {
+function drawAttackLines(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera, oblique: boolean): void {
   ctx.save()
   ctx.strokeStyle = ATTACK_LINE_COLOR
   ctx.lineWidth = 1.5
@@ -193,8 +297,8 @@ function drawAttackLines(ctx: CanvasRenderingContext2D, state: GameState, camera
     if (!unit.alive || unit.attackTarget === null) continue
     const target = state.units.find((u) => u.id === unit.attackTarget)
     if (!target || !target.alive) continue
-    const from = worldToScreen(camera, unitWorldPos(state, unit))
-    const to = worldToScreen(camera, unitWorldPos(state, target))
+    const from = unitScreen(camera, state, unit, oblique)
+    const to = unitScreen(camera, state, target, oblique)
     ctx.beginPath()
     ctx.moveTo(from.x, from.y)
     ctx.lineTo(to.x, to.y)
@@ -257,11 +361,12 @@ function drawUnits(
   state: GameState,
   camera: Camera,
   selectedUnitId: number | null,
+  oblique: boolean,
 ): void {
   const radius = Math.max(2, camera.scale * UNIT_RADIUS_FRACTION)
   for (const unit of state.units) {
     if (!unit.alive) continue
-    const screen = worldToScreen(camera, unitWorldPos(state, unit))
+    const screen = unitScreen(camera, state, unit, oblique)
 
     ctx.beginPath()
     ctx.arc(screen.x, screen.y, radius, 0, Math.PI * 2)
@@ -294,10 +399,11 @@ function drawUnitOverlays(
   state: GameState,
   camera: Camera,
   options: DrawOptions,
+  oblique: boolean,
 ): void {
   const unit = state.units.find((u) => u.id === options.selectedUnitId)
   if (!unit || !unit.alive) return
-  const screen = worldToScreen(camera, unitWorldPos(state, unit))
+  const screen = unitScreen(camera, state, unit, oblique)
 
   ctx.save()
   ctx.setLineDash([4, 4])
@@ -322,6 +428,7 @@ function drawObservationPatch(
   state: GameState,
   camera: Camera,
   selectedUnitId: number,
+  oblique: boolean,
 ): void {
   const unit = state.units.find((u) => u.id === selectedUnitId)
   if (!unit || !unit.alive) return
@@ -337,7 +444,7 @@ function drawObservationPatch(
   for (const offset of nodesInRadius(state.config.patchHops)) {
     const idx = nodeIndex.get(axialKey({ q: selfNode.q + offset.q, r: selfNode.r + offset.r }))
     if (idx === undefined) continue
-    const screen = worldToScreen(camera, world(state.nodes[idx]))
+    const screen = nodeScreen(camera, state.nodes[idx], oblique)
     hexPath(ctx, screen, circumradius)
     ctx.fill()
   }

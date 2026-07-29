@@ -4,11 +4,11 @@
  * このロジックをPython側に複製する必要がない。
  *
  *   tsx src/bridge/evalAndReplay.ts eval --checkpointDir <dir> --iteration <n> --seedBase <n>
- *       [--episodes <n>] [--opponents scripted,decisionTree,survival]
+ *       [--episodes <n>] [--opponents expander,guardian,raider]
  *     -> `EvalReport`を1行のJSONで標準出力へ。
  *
  *   tsx src/bridge/evalAndReplay.ts replay --checkpointDir <dir> --iteration <n> --seed <n>
- *       [--opponent scripted|decisionTree|survival|selfPlay] [--replayDir public/replays]
+ *       [--opponent expander|guardian|raider|selfPlay] [--replayDir public/replays]
  *     -> `ReplayManifestEntry`を1行のJSONで標準出力へ(ブラウザの学習リプレイ一覧に
  *     そのまま乗る — Python訓練かTS訓練かをブラウザ側は区別しない)。`--opponent selfPlay`は
  *     baseline botとの対戦ではなく、全チームがそのチェックポイントのポリシーに従う自己対戦
@@ -41,7 +41,7 @@ async function runEval(args: string[]): Promise<void> {
     )
   }
   const episodes = Number(readArg(args, 'episodes') ?? '5')
-  const opponents = (readArg(args, 'opponents') ?? 'scripted,decisionTree,survival').split(',') as BotKind[]
+  const opponents = (readArg(args, 'opponents') ?? 'expander,guardian,raider').split(',') as BotKind[]
 
   const { model, meta } = await loadCheckpoint(checkpointDir)
   const report = evaluateAgainstBots(model, meta.simConfig, {
@@ -58,10 +58,10 @@ async function runReplay(args: string[]): Promise<void> {
   const seedStr = readArg(args, 'seed')
   if (!checkpointDir || !iterationStr || !seedStr) {
     throw new Error(
-      'usage: evalAndReplay.ts replay --checkpointDir <dir> --iteration <n> --seed <n> [--opponent scripted] [--replayDir dir]',
+      'usage: evalAndReplay.ts replay --checkpointDir <dir> --iteration <n> --seed <n> [--opponent expander] [--replayDir dir]',
     )
   }
-  const opponent = readArg(args, 'opponent') ?? 'scripted'
+  const opponent = readArg(args, 'opponent') ?? 'expander'
   const replayDir = readArg(args, 'replayDir') ?? 'public/replays'
 
   const { model, meta } = await loadCheckpoint(checkpointDir)

@@ -5,6 +5,7 @@ import {
   Crosshair,
   Eye,
   Grid3x3,
+  Mountain,
   Pause,
   Play,
   RotateCcw,
@@ -12,14 +13,15 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react'
+import { defaultBotKindForTeam } from '../agents'
 import { teamColor } from '../render'
 import { isMuted, playClick, playHover, setMuted } from './sound'
 import type { PlaybackMode, RlSlot, RlSlotStatus, SimulationFormConfig, TeamLogicKind } from './useSimulationLoop'
 
 const BOT_LABEL: Record<TeamLogicKind, string> = {
-  scripted: 'スクリプト',
-  decisionTree: '判断木',
-  survival: '生存優先',
+  expander: '拡張型',
+  guardian: '防衛型',
+  raider: '攻撃型',
   rlBest: 'RL: 最良チェックポイント',
   rlLatest: 'RL: 最新チェックポイント',
 }
@@ -51,9 +53,11 @@ interface Props {
   showVision: boolean
   showAttackRange: boolean
   showPatch: boolean
+  obliqueView: boolean
   onToggleVision: () => void
   onToggleAttackRange: () => void
   onTogglePatch: () => void
+  onToggleObliqueView: () => void
 }
 
 export function ControlPanel({
@@ -76,9 +80,11 @@ export function ControlPanel({
   showVision,
   showAttackRange,
   showPatch,
+  obliqueView,
   onToggleVision,
   onToggleAttackRange,
   onTogglePatch,
+  onToggleObliqueView,
 }: Props) {
   const [seedInput, setSeedInput] = useState(seed)
   const [mapRadiusInput, setMapRadiusInput] = useState(configForm.mapRadius)
@@ -240,7 +246,7 @@ export function ControlPanel({
         </button>
         {teamLogicExpanded &&
           Array.from({ length: configForm.teamCount }, (_, teamId) => teamId).map((teamId) => {
-            const kind = botAssignment.get(teamId) ?? 'scripted'
+            const kind = botAssignment.get(teamId) ?? defaultBotKindForTeam(teamId)
             const statusLabel = kind === 'rlBest' || kind === 'rlLatest' ? RL_STATUS_LABEL[rlSlotStatus[kind]] : ''
             return (
               <label key={teamId}>
@@ -296,6 +302,17 @@ export function ControlPanel({
             aria-pressed={showPatch}
           >
             <Grid3x3 size={18} />
+          </button>
+          <button
+            type="button"
+            className={`icon-button toggle${obliqueView ? ' toggle-on' : ''}`}
+            onClick={withClick(onToggleObliqueView)}
+            onMouseEnter={playHover}
+            title="斜め見下ろし(標高表示)"
+            aria-label="斜め見下ろし(標高表示)"
+            aria-pressed={obliqueView}
+          >
+            <Mountain size={18} />
           </button>
         </div>
       </section>

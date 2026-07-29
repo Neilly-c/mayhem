@@ -37,17 +37,16 @@ function isRlSlot(kind: TeamLogicKind): kind is RlSlot {
 
 /** `botAssignment`をチームIDの割り当てに沿ってbot駆動分とRLモデル駆動分に振り分け、それぞれの
  * `DecisionSource`へ委譲してから1つの`Map`にまとめる(`evaluate.ts`の2択専用`mergeDecisionSources`
- * のN択版)。RL選択中でもモデル未ロード/読込失敗の間は`defaultBot`へフォールバックする。 */
+ * のN択版)。RL選択中でもモデル未ロード/読込失敗の間は既定bot(チームNo. mod n)へフォールバックする。 */
 function createRoutedDecisionSource(
   assignment: Map<number, TeamLogicKind>,
-  defaultBot: BotKind,
   rlSources: Partial<Record<RlSlot, DecisionSource>>,
 ): DecisionSource {
   const botAssignment = new Map<number, BotKind>()
   for (const [teamId, kind] of assignment) {
     if (!isRlSlot(kind)) botAssignment.set(teamId, kind)
   }
-  const botSource = createTeamRoutedDecisionSource(botAssignment, defaultBot)
+  const botSource = createTeamRoutedDecisionSource(botAssignment)
 
   return (state, unitIds) => {
     const botIds: number[] = []
@@ -106,7 +105,6 @@ const MAX_TICKS_PER_FRAME = 2000
 
 const DEFAULT_SEED = 1
 const DEFAULT_FORM_CONFIG: SimulationFormConfig = { mapRadius: 15, teamCount: 6, unitsPerTeam: 3 }
-const DEFAULT_BOT: BotKind = 'scripted'
 
 function buildSimConfig(form: SimulationFormConfig): Partial<SimConfig> {
   return { mapRadius: form.mapRadius, teamCount: form.teamCount, unitsPerTeam: form.unitsPerTeam }
@@ -115,7 +113,7 @@ function buildSimConfig(form: SimulationFormConfig): Partial<SimConfig> {
 function createDriver(seed: number, form: SimulationFormConfig): Driver {
   return {
     sim: Simulation.create(seed, buildSimConfig(form)),
-    decisionSource: createTeamRoutedDecisionSource(new Map(), DEFAULT_BOT),
+    decisionSource: createTeamRoutedDecisionSource(new Map()),
     log: null,
   }
 }
@@ -182,7 +180,7 @@ export function useSimulationLoop() {
     const simConfig = buildSimConfig(form)
     driverRef.current = {
       sim: Simulation.create(nextSeed, simConfig),
-      decisionSource: createTeamRoutedDecisionSource(new Map(), DEFAULT_BOT),
+      decisionSource: createTeamRoutedDecisionSource(new Map()),
       log: null,
     }
     logRef.current = []
@@ -246,7 +244,7 @@ export function useSimulationLoop() {
     const rlSources: Partial<Record<RlSlot, DecisionSource>> = {}
     if (rlModelsRef.current.rlBest) rlSources.rlBest = createBrowserPolicyDecisionSource(rlModelsRef.current.rlBest)
     if (rlModelsRef.current.rlLatest) rlSources.rlLatest = createBrowserPolicyDecisionSource(rlModelsRef.current.rlLatest)
-    driver.decisionSource = createRoutedDecisionSource(botAssignment, DEFAULT_BOT, rlSources)
+    driver.decisionSource = createRoutedDecisionSource(botAssignment, rlSources)
   }, [botAssignment, mode, rlModelVersion])
 
   const setTeamBot = useCallback((teamId: number, kind: TeamLogicKind) => {
@@ -290,7 +288,9 @@ export function useSimulationLoop() {
         let ticksToRun = Math.min(MAX_TICKS_PER_FRAME, Math.floor(accumulatedMs / msPerTick))
         accumulatedMs -= ticksToRun * msPerTick
 
-        // ユーザー要望: 生存チームが1チーム以下になった時点でシミュレーションを止める(自動一時停止)。
+        // ユーザー要望: 陣営の目的はマップ占領率。残り1チームでも自由に塗り続けられるため、
+        // 全チームのユニットが全滅した時点(`isGameOver`, リングダメージによる最終的な全滅)で
+        // シミュレーションを止める(自動一時停止)。
         let over = isGameOver(driver.sim.state)
         while (!over && ticksToRun-- > 0) {
           stepOnceWithDecisions(

@@ -19,8 +19,8 @@ describe('meanWinRate', () => {
     const report: EvalReport = {
       iteration: 1,
       matchups: [
-        { opponentBotKind: 'scripted', episodes: 5, winRate: 0.4, avgRank: 1 },
-        { opponentBotKind: 'decisionTree', episodes: 5, winRate: 0.8, avgRank: 1 },
+        { opponentBotKind: 'expander', episodes: 5, winRate: 0.4, avgRank: 1 },
+        { opponentBotKind: 'guardian', episodes: 5, winRate: 0.8, avgRank: 1 },
       ],
     }
     expect(meanWinRate(report)).toBeCloseTo(0.6, 10)

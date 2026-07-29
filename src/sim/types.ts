@@ -109,6 +109,9 @@ export interface SimConfig {
   ringRadiusSchedule: number[]
   /** slipDamage[stage] = HP/tick taken while outside the safe zone during that stage. */
   slipDamage: number[]
+  /** ユーザー要望: 残り1チームになった時点からゲーム終了までのカウントダウン(tick数)。
+   * それまでは唯一の生存チームが自由に占領を続けられてしまうため、上限を設ける(§rules.ts)。 */
+  lastTeamCountdownTicks: number
 }
 
 export interface RingState {

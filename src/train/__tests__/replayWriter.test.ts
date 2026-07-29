@@ -9,7 +9,7 @@ import type { RecordedReplay } from '../replayRecording'
 function makeReplay(overrides?: Partial<RecordedReplay>): RecordedReplay {
   return {
     iteration: 1,
-    opponentBotKind: 'scripted',
+    opponentBotKind: 'expander',
     seed: 1,
     simConfig: defaultConfig(),
     log: [{ tick: 0, commands: [] }],
@@ -22,10 +22,10 @@ describe('saveReplay', () => {
   it('writes the replay JSON file and a manifest entry pointing to it', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mayhem-replay-writer-test-'))
     try {
-      const replay = makeReplay({ iteration: 10, opponentBotKind: 'survival' })
+      const replay = makeReplay({ iteration: 10, opponentBotKind: 'guardian' })
       const entry = saveReplay(replay, dir)
 
-      expect(entry.filename).toBe('iter-10-vs-survival.json')
+      expect(entry.filename).toBe('iter-10-vs-guardian.json')
       expect(fs.existsSync(path.join(dir, entry.filename))).toBe(true)
 
       const written = JSON.parse(fs.readFileSync(path.join(dir, entry.filename), 'utf-8'))
@@ -100,9 +100,9 @@ describe('pruneReplays', () => {
   it('keeps multiple matchup entries for the same surviving iteration', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mayhem-replay-writer-test-'))
     try {
-      const kept = saveReplay(makeReplay({ iteration: 20, opponentBotKind: 'scripted' }), dir)
-      const alsoKept = saveReplay(makeReplay({ iteration: 20, opponentBotKind: 'survival' }), dir)
-      const dropped = saveReplay(makeReplay({ iteration: 40, opponentBotKind: 'scripted' }), dir)
+      const kept = saveReplay(makeReplay({ iteration: 20, opponentBotKind: 'expander' }), dir)
+      const alsoKept = saveReplay(makeReplay({ iteration: 20, opponentBotKind: 'guardian' }), dir)
+      const dropped = saveReplay(makeReplay({ iteration: 40, opponentBotKind: 'expander' }), dir)
 
       const deleted = pruneReplays(dir, new Set([20]))
 

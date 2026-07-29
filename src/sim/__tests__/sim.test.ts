@@ -167,7 +167,9 @@ describe('Simulation', () => {
     const events = sim.step()
 
     expect(sim.state.units.find((u) => u.id === victim.id)?.alive).toBe(false)
-    expect(isGameOver(sim.state)).toBe(true)
+    // ユーザー要望: 陣営の目的はマップ占領率。残り1チームでも(リングダメージで全滅するまで)
+    // 自由に塗り続けられるため、他チーム全滅のみではゲームは終わらない。
+    expect(isGameOver(sim.state)).toBe(false)
     expect(getWinnerTeamId(sim.state)).toBe(attacker.teamId)
     const victimTeam = sim.state.teams.find((t) => t.id === victim.teamId)
     expect(victimTeam?.eliminatedAtTick).toBe(sim.state.tick)

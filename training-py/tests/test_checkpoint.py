@@ -54,8 +54,8 @@ def test_set_checkpoint_score_patches_meta_json_in_place():
 def test_mean_win_rate_averages_across_matchups():
     report = {
         "matchups": [
-            {"opponentBotKind": "scripted", "winRate": 0.4},
-            {"opponentBotKind": "decisionTree", "winRate": 0.8},
+            {"opponentBotKind": "expander", "winRate": 0.4},
+            {"opponentBotKind": "guardian", "winRate": 0.8},
         ]
     }
     assert mean_win_rate(report) == pytest.approx(0.6)

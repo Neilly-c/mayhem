@@ -8,15 +8,13 @@ describe('curriculumSimConfig', () => {
   })
 
   it('advances to the next stage exactly at its threshold', () => {
-    expect(curriculumSimConfig(50).mapRadius).toBe(14)
-    expect(curriculumSimConfig(149).mapRadius).toBe(14)
-    expect(curriculumSimConfig(150).mapRadius).toBe(20)
-    expect(curriculumSimConfig(300).mapRadius).toBe(25)
+    expect(curriculumSimConfig(50).mapRadius).toBe(15)
+    expect(curriculumSimConfig(51).mapRadius).toBe(15)
   })
 
   it('stays at the final stage indefinitely past its threshold', () => {
-    expect(curriculumSimConfig(1000).mapRadius).toBe(25)
-    expect(curriculumSimConfig(1_000_000).mapRadius).toBe(25)
+    expect(curriculumSimConfig(1000).mapRadius).toBe(15)
+    expect(curriculumSimConfig(1_000_000).mapRadius).toBe(15)
   })
 
   it('always fixes teamCount:6 and unitsPerTeam:3 regardless of iteration (network-shape invariant)', () => {

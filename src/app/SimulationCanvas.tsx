@@ -20,6 +20,7 @@ interface Props {
   showVision: boolean
   showAttackRange: boolean
   showPatch: boolean
+  obliqueView: boolean
 }
 
 /**
@@ -36,6 +37,7 @@ export function SimulationCanvas({
   showVision,
   showAttackRange,
   showPatch,
+  obliqueView,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const cameraRef = useRef<Camera | null>(null)
@@ -48,8 +50,8 @@ export function SimulationCanvas({
     const state = getState()
     const camera = fitCamera(state, canvas.width, canvas.height)
     cameraRef.current = camera
-    drawFrame(ctx, state, camera, { showVision, showAttackRange, showPatch, selectedUnitId })
-  }, [getState, tick, episode, selectedUnitId, showVision, showAttackRange, showPatch])
+    drawFrame(ctx, state, camera, { showVision, showAttackRange, showPatch, selectedUnitId, obliqueView })
+  }, [getState, tick, episode, selectedUnitId, showVision, showAttackRange, showPatch, obliqueView])
 
   const handleClick = (e: MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current

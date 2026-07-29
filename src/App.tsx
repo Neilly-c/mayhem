@@ -11,6 +11,7 @@ function App() {
   const [showVision, setShowVision] = useState(true)
   const [showAttackRange, setShowAttackRange] = useState(true)
   const [showPatch, setShowPatch] = useState(false)
+  const [obliqueView, setObliqueView] = useState(false)
 
   return (
     <div id="game-root">
@@ -24,6 +25,7 @@ function App() {
           showVision={showVision}
           showAttackRange={showAttackRange}
           showPatch={showPatch}
+          obliqueView={obliqueView}
         />
         <div className="side-column">
           <TrainingReplayPanel onLoadReplay={loop.loadReplay} />
@@ -47,9 +49,11 @@ function App() {
             showVision={showVision}
             showAttackRange={showAttackRange}
             showPatch={showPatch}
+            obliqueView={obliqueView}
             onToggleVision={() => setShowVision((v) => !v)}
             onToggleAttackRange={() => setShowAttackRange((v) => !v)}
             onTogglePatch={() => setShowPatch((v) => !v)}
+            onToggleObliqueView={() => setObliqueView((v) => !v)}
           />
         </div>
         <div className="side-column">

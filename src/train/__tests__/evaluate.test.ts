@@ -23,9 +23,9 @@ describe('evaluateAgainstBots', () => {
       iteration: 1,
       seedBase: 99,
       matchups: [
-        { opponentBotKind: 'scripted', episodes: 2 },
-        { opponentBotKind: 'decisionTree', episodes: 2 },
-        { opponentBotKind: 'survival', episodes: 2 },
+        { opponentBotKind: 'expander', episodes: 2 },
+        { opponentBotKind: 'guardian', episodes: 2 },
+        { opponentBotKind: 'raider', episodes: 2 },
       ],
       maxTicksPerEpisode: 500,
     })
@@ -48,7 +48,7 @@ describe('evaluateAgainstBots', () => {
     const opts = {
       iteration: 1,
       seedBase: 123,
-      matchups: [{ opponentBotKind: 'scripted' as const, episodes: 1 }],
+      matchups: [{ opponentBotKind: 'expander' as const, episodes: 1 }],
       maxTicksPerEpisode: 500,
     }
     const a = evaluateAgainstBots(model, TINY_CONFIG, opts)

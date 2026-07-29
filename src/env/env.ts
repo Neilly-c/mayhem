@@ -25,6 +25,11 @@ export class Env {
   private readonly maxTicks?: number
   private sim!: Simulation
   private winnerBonusAwarded = false
+  /** `applyTickRewards`の次リング先回りシェイピング用、ユニットID毎の前tickポテンシャル値。
+   * ユニットIDはエピソードをまたいで使い回される(`entities.ts`が毎回0から振り直す)ため、
+   * `reset`のたびに必ずクリアする — でないと前エピソードの無関係なユニットの値を
+   * 誤って引き継いでしまう。 */
+  private ringPotentialMemo = new Map<number, number>()
 
   private constructor(simConfig: SimConfig, rewardConfig: RewardConfig, maxTicks: number | undefined) {
     this.simConfig = simConfig
@@ -53,6 +58,7 @@ export class Env {
   reset(seed: number): Record<number, Observation> {
     this.sim = Simulation.create(seed, this.simConfig)
     this.winnerBonusAwarded = false
+    this.ringPotentialMemo.clear()
     return this.buildAgentData().observations
   }
 
@@ -81,7 +87,7 @@ export class Env {
 
     for (let i = 0; i < this.simConfig.decisionInterval; i++) {
       const events = this.sim.step()
-      applyTickRewards(rewards, events, this.sim.state, this.rewardConfig)
+      applyTickRewards(rewards, events, this.sim.state, this.rewardConfig, this.ringPotentialMemo)
       for (const death of events.deaths) deadThisBlock.add(death.unitId)
       if (isGameOver(this.sim.state)) break
     }

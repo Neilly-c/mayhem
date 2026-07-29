@@ -1,19 +1,11 @@
 import type { GameState } from '../sim'
-import { getRanking, isGameOver } from '../sim'
+import { getTerritoryRanking, isGameOver, teamTerritoryRate } from '../sim'
 import { computeVisibleEnemies } from '../env'
 import { teamColor } from '../render'
 
-/**
- * 脱落済みチームの順位は`getRanking`が返す時点でその後変わらない(まだ生存中のチームは常に
- * `eliminatedAtTick`が未確定=最大値扱いで上位に来るため)。生存中のチームはゲーム終了(最後の
- * 1チームが確定)まで順位が確定しないので、その間は`null`を返して「生存」のまま表示させる。
- */
-function confirmedRank(state: GameState, teamId: number): number | null {
-  const team = state.teams.find((t) => t.id === teamId)
-  if (!team) return null
-  if (!team.alive) return getRanking(state).indexOf(team.id) + 1
-  return isGameOver(state) ? 1 : null
-}
+/** 棒グラフの表示上限。占領率50%以上は(それ以上他陣営が居ないので)勝利確定となるため、
+ * それより先を見せる必要がない — スケールをここで頭打ちにして小さな差を見やすくする。 */
+const TERRITORY_BAR_MAX_PERCENT = 50
 
 interface Props {
   state: GameState
@@ -23,12 +15,19 @@ interface Props {
 export function DebugPanel({ state, selectedUnitId }: Props) {
   const selectedUnit = selectedUnitId !== null ? state.units.find((u) => u.id === selectedUnitId) : undefined
 
+  // ユーザー要望: 陣営の目的はマップ占領率(リング内外は無関係)。占領率は生存チーム同士の
+  // 奪い合いでゲーム終了まで変動し続けるため、脱落済みチームも含めた最終順位はゲームが
+  // 本当に終わるまで確定しない。それまでは全チーム一律「生存/全滅」とだけ表示する。
+  const gameOver = isGameOver(state)
+  const territoryRanking = gameOver ? getTerritoryRanking(state) : null
+
   const teamSummaries = state.teams.map((team) => {
     const teamUnits = state.units.filter((u) => u.teamId === team.id)
     const aliveUnits = teamUnits.filter((u) => u.alive)
     const totalHp = aliveUnits.reduce((sum, u) => sum + u.hp, 0)
-    const maxHp = teamUnits.length * state.config.unitHP
-    return { team, teamUnits, aliveUnits, totalHp, maxHp, rank: confirmedRank(state, team.id) }
+    const territoryPercent = teamTerritoryRate(state, team.id) * 100
+    const rank = territoryRanking ? territoryRanking.indexOf(team.id) + 1 : null
+    return { team, teamUnits, aliveUnits, totalHp, territoryPercent, rank }
   })
 
   return (
@@ -40,12 +39,12 @@ export function DebugPanel({ state, selectedUnitId }: Props) {
             <th>チーム</th>
             <th>残数</th>
             <th>HP合計</th>
-            <th>撃破数</th>
+            <th>占領率</th>
             <th>状態</th>
           </tr>
         </thead>
         <tbody>
-          {teamSummaries.map(({ team, teamUnits, aliveUnits, totalHp, rank }) => (
+          {teamSummaries.map(({ team, teamUnits, aliveUnits, totalHp, territoryPercent, rank }) => (
             <tr key={team.id} className={team.alive ? undefined : 'eliminated'}>
               <td>
                 <span className="team-swatch" style={{ background: teamColor(team.id) }} />
@@ -55,20 +54,24 @@ export function DebugPanel({ state, selectedUnitId }: Props) {
                 {aliveUnits.length}/{teamUnits.length}
               </td>
               <td>{totalHp.toFixed(1)}</td>
-              <td>{team.killCount}</td>
-              <td>{rank !== null ? `${rank}位` : '生存'}</td>
+              <td>{territoryPercent.toFixed(2)}%</td>
+              <td>{rank !== null ? `${rank}位` : team.alive ? '生存' : '全滅'}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* ユーザー要望: 状態表の下にチームHPの縦棒グラフを追加する。 */}
-      <div className="hp-bar-chart">
-        {teamSummaries.map(({ team, totalHp, maxHp }) => {
-          const pct = maxHp > 0 ? (totalHp / maxHp) * 100 : 0
+      {/* ユーザー要望: 状態表の下に占領率の縦棒グラフを追加する(HPではなく占領率、最大50%)。 */}
+      <div className="territory-bar-chart">
+        {teamSummaries.map(({ team, territoryPercent }) => {
+          const barHeightPct = Math.min(100, (territoryPercent / TERRITORY_BAR_MAX_PERCENT) * 100)
           return (
-            <div key={team.id} className="hp-bar" title={`チーム${team.id}: ${totalHp.toFixed(0)} / ${maxHp}`}>
-              <div className="hp-bar-fill" style={{ height: `${pct}%`, background: teamColor(team.id) }} />
+            <div
+              key={team.id}
+              className="territory-bar"
+              title={`チーム${team.id}: ${territoryPercent.toFixed(2)}%`}
+            >
+              <div className="territory-bar-fill" style={{ height: `${barHeightPct}%`, background: teamColor(team.id) }} />
             </div>
           )
         })}

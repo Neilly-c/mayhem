@@ -5,6 +5,7 @@ import {
   nodesInRadius,
   unitElevation,
   unitWorldPos,
+  world,
   worldDistBetween,
 } from '../sim'
 import type { Observation } from './types'
@@ -45,6 +46,16 @@ export function buildObservation(
   const ticksUntilShrink = state.ring.phase === 'warn' ? config.warnTicks - state.ring.phaseTicks : 0
   const ticksUntilShrinkNorm = ticksUntilShrink / Math.max(1, config.warnTicks)
   const inRingFlag = worldDistBetween(selfWorldPos, centerWorldPos) <= state.ring.activeRadius ? 1 : 0
+  // ユーザー要望: 予告リング(次に収縮する先)への自己相対位置も観測に含める。以前は現在の
+  // リングの情報しか無く、方策が「今リングの外にいるか」しか知覚できず、動くリングへの先回りが
+  // できなかった(§8で開示済みの`ring.nextCenter`/`nextRadius`を使うだけなので、観測を作る
+  // 側の追加情報であり、simのルール自体は変えていない)。
+  const nextCenterWorldPos = world(state.nodes[state.ring.nextCenter])
+  const relToNextCenter = [
+    (selfWorldPos.x - nextCenterWorldPos.x) / mapScale,
+    (selfWorldPos.y - nextCenterWorldPos.y) / mapScale,
+  ]
+  const nextRingRadiusNorm = state.ring.nextRadius / mapScale
   const hpNorm = self.hp / config.unitHP
 
   const directionOneHot = new Array<number>(6).fill(0)
@@ -67,6 +78,8 @@ export function buildObservation(
     ringRadiusNorm,
     ticksUntilShrinkNorm,
     inRingFlag,
+    ...relToNextCenter,
+    nextRingRadiusNorm,
     selfElevation,
     hpNorm,
     onNode ? 1 : 0,

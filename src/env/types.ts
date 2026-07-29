@@ -44,4 +44,9 @@ export interface RewardConfig {
   slipDamageCoef: number
   /** rankBonus[i] = 順位i(0=優勝)のチームに与える終端ボーナス。降順、長さ=teamCount。 */
   rankBonus: number[]
+  /** ユーザー要望: 次のリング(予告円)へ先回りするインセンティブ。ポテンシャルベースシェイピング
+   * `Φ(s) = -(次のリング境界からのはみ出し距離、内側なら0)`の差分`Φ(s') - Φ(s)`にこの係数を
+   * 掛けて毎tick加算する — 被弾する前から近づくこと自体に報酬が出るため、`slipDamageCoef`のような
+   * 事後ペナルティだけでは学習しにくい「先回り」行動を後押しする(`rewards.ts`参照)。 */
+  nextRingShapingCoef: number
 }

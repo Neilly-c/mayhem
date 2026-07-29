@@ -34,11 +34,11 @@ export function buildActionMask(state: GameState, unit: UnitState, visibleEnemie
  *
  * ユーザー要望: move=0(待機)を`{ type: 'idle' }`ではなく`{ type: 'moveTo', node: selfNode }`
  * (現在地への`moveTo`)にデコードする。`sim/movement.ts`の`idle`は「指令未介入時のランダム探索
- * フォールバック」であり「その場に留まる」ではないため(`scriptedBot.ts`はこの挙動を意図して使う)、
- * RLの行動空間側でmove=0を選んでも実際には静止できず、`territory.ts`の敵所有ノード奪取に必要な
- * `captureTicks`連続静止を達成できなかった。`moveTo: selfNode`は`decisionTreeBot.ts`/`survivalBot.ts`
- * が「その場で静止する」ために使っているのと同じ手段(自ノードへの`moveTo`は空経路→待機に解決し、
- * `unit.destination`もそのノードに固定され続けるので、以後のtickも静止し続ける)。
+ * フォールバック」であり「その場に留まる」ではないため、RLの行動空間側でmove=0を選んでも実際には
+ * 静止できず、`territory.ts`の敵所有ノード奪取に必要な`captureTicks`連続静止を達成できなかった。
+ * `moveTo: selfNode`は`raiderBot.ts`が交戦時に「その場で静止する」ために使っているのと同じ手段
+ * (自ノードへの`moveTo`は空経路→待機に解決し、`unit.destination`もそのノードに固定され続けるので、
+ * 以後のtickも静止し続ける)。
  */
 export function decodeAction(
   action: ActionInput,

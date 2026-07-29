@@ -41,7 +41,7 @@ def evaluate_checkpoint(
     iteration: int,
     seed_base: int,
     episodes: int = 5,
-    opponents: tuple[str, ...] = ("scripted", "decisionTree", "survival"),
+    opponents: tuple[str, ...] = ("expander", "guardian", "raider"),
 ) -> dict[str, Any]:
     return _run(
         "eval",
@@ -62,7 +62,7 @@ def record_replay_for_checkpoint(
     checkpoint_dir: str | Path,
     iteration: int,
     seed: int,
-    opponent: str = "scripted",
+    opponent: str = "expander",
     replay_dir: str = "public/replays",
 ) -> dict[str, Any]:
     return _run(

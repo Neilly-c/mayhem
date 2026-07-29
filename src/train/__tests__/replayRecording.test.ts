@@ -22,10 +22,10 @@ function buildModel() {
 describe('recordReplay', () => {
   it('produces a non-empty, well-formed log with the resolved sim config', () => {
     const model = buildModel()
-    const replay = recordReplay(model, TINY_CONFIG, { iteration: 5, opponentBotKind: 'scripted', seed: 1, maxTicks: 200 })
+    const replay = recordReplay(model, TINY_CONFIG, { iteration: 5, opponentBotKind: 'expander', seed: 1, maxTicks: 200 })
 
     expect(replay.iteration).toBe(5)
-    expect(replay.opponentBotKind).toBe('scripted')
+    expect(replay.opponentBotKind).toBe('expander')
     expect(replay.seed).toBe(1)
     expect(replay.simConfig.mapRadius).toBe(TINY_CONFIG.mapRadius)
     expect(replay.log.length).toBeGreaterThan(0)
@@ -37,7 +37,7 @@ describe('recordReplay', () => {
 
   it('the recorded log replays deterministically to the same outcome via createReplayDecisionSource', () => {
     const model = buildModel()
-    const replay = recordReplay(model, TINY_CONFIG, { iteration: 1, opponentBotKind: 'scripted', seed: 2, maxTicks: 200 })
+    const replay = recordReplay(model, TINY_CONFIG, { iteration: 1, opponentBotKind: 'expander', seed: 2, maxTicks: 200 })
 
     // Replay it independently, driving the exact same decisionInterval loop pattern used to record it.
     const sim = Simulation.create(replay.seed, replay.simConfig)
@@ -63,7 +63,7 @@ describe('recordReplay', () => {
 
   it('is deterministic: same seed/config/model produces an identical log', () => {
     const model = buildModel()
-    const opts = { iteration: 1, opponentBotKind: 'scripted' as const, seed: 3, maxTicks: 100 }
+    const opts = { iteration: 1, opponentBotKind: 'expander' as const, seed: 3, maxTicks: 100 }
     const a = recordReplay(model, TINY_CONFIG, opts)
     const b = recordReplay(model, TINY_CONFIG, opts)
     expect(a.log).toEqual(b.log)

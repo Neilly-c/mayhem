@@ -1,10 +1,17 @@
-import type { GameState, TickEvents } from '../sim'
-import { getRanking, isGameOver } from '../sim'
+import type { GameState, UnitState, TickEvents } from '../sim'
+import { getRanking, isGameOver, unitWorldPos, world, worldDistBetween } from '../sim'
 import type { RewardConfig } from './types'
 
 function add(rewards: Record<number, number>, unitId: number, amount: number): void {
   if (amount === 0) return
   rewards[unitId] = (rewards[unitId] ?? 0) + amount
+}
+
+/** 次のリング(予告円)の境界からのはみ出し距離。内側(またはちょうど境界上)なら0。 */
+function distanceOutsideNextRing(state: GameState, unit: UnitState): number {
+  const nextCenterWorld = world(state.nodes[state.ring.nextCenter])
+  const dist = worldDistBetween(unitWorldPos(state, unit), nextCenterWorld)
+  return Math.max(0, dist - state.ring.nextRadius)
 }
 
 /**
@@ -14,12 +21,22 @@ function add(rewards: Record<number, number>, unitId: number, amount: number): v
  *
  * チームが脱落したtickでは`getRanking`を評価して順位ボーナスを与える。脱落順は`eliminatedAtTick`
  * により後から変わらないため、これは近似ではなくその時点で確定した最終順位そのものである。
+ *
+ * `ringPotentialMemo`: ユーザー要望の「次のリングへの先回り」シェイピング用。ポテンシャル関数
+ * `Φ(s) = -distanceOutsideNextRing(s)`の**前tickからの差分**`Φ(s') - Φ(s)`を
+ * `nextRingShapingCoef`倍して毎tick加算する(Ng et al. 1999のpotential-based shapingに準拠 —
+ * 割引率γは1として近似している。1tickあたりの差分にとどめる分には既定のγ=0.99との乖離は
+ * 無視できるほど小さい)。差分を取るには前tickのΦを覚えておく必要があるため、呼び出し側
+ * (`Env`)がユニットID毎の前回値をこの`Map`として持ち回し、エピソードが変わったら(ユニットIDが
+ * 使い回されるため)必ずクリアする。あるユニットの初回tickは差分0からスタートする
+ * (突然大きな報酬/罰が出るのを防ぐ)。
  */
 export function applyTickRewards(
   rewards: Record<number, number>,
   events: TickEvents,
   state: GameState,
   config: RewardConfig,
+  ringPotentialMemo: Map<number, number>,
 ): void {
   for (const c of events.combat) {
     add(rewards, c.attackerId, c.damage * config.damageDealtCoef)
@@ -46,7 +63,13 @@ export function applyTickRewards(
   }
 
   for (const unit of state.units) {
-    if (unit.alive) add(rewards, unit.id, config.survivalReward)
+    if (!unit.alive) continue
+    add(rewards, unit.id, config.survivalReward)
+
+    const potential = -distanceOutsideNextRing(state, unit)
+    const prevPotential = ringPotentialMemo.get(unit.id) ?? potential
+    add(rewards, unit.id, config.nextRingShapingCoef * (potential - prevPotential))
+    ringPotentialMemo.set(unit.id, potential)
   }
 
   for (const teamId of events.eliminatedTeams) {

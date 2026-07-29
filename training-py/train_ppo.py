@@ -14,7 +14,7 @@ Usage: python train_ppo.py [--num-envs N] [--num-workers N] [--rollout-length N]
     [--iterations N] [--seed N] [--gamma F] [--lambda F] [--clip-ratio F] [--epochs N]
     [--minibatch-size N] [--value-loss-coef F] [--entropy-coef F] [--learning-rate F]
     [--eval-episodes N] [--checkpoint-every N] [--checkpoint-dir DIR] [--keep-top-n-checkpoints N]
-    [--replay-dir DIR] [--replay-opponent scripted|decisionTree|survival|selfPlay] [--resume-from DIR]
+    [--replay-dir DIR] [--replay-opponent expander|guardian|raider|selfPlay] [--resume-from DIR]
     [--log-path PATH] [--device cpu|cuda]
 """
 
@@ -68,7 +68,7 @@ class TrainConfig:
     checkpoint_dir: str = "checkpoints"
     keep_top_n_checkpoints: int = 3
     replay_dir: str = "public/replays"
-    replay_opponent: str = "scripted"
+    replay_opponent: str = "expander"
     resume_from: str | None = None
     log_path: str | None = None
     device: str = "cpu"
@@ -95,7 +95,7 @@ def parse_args() -> TrainConfig:
     p.add_argument("--keep-top-n-checkpoints", type=int, default=3)
     p.add_argument("--replay-dir", type=str, default="public/replays")
     p.add_argument(
-        "--replay-opponent", type=str, default="scripted", choices=["scripted", "decisionTree", "survival", "selfPlay"]
+        "--replay-opponent", type=str, default="expander", choices=["expander", "guardian", "raider", "selfPlay"]
     )
     p.add_argument("--resume-from", type=str, default=None)
     p.add_argument("--log-path", type=str, default=None)

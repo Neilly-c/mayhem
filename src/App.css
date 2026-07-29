@@ -245,7 +245,7 @@ main {
   box-shadow: 0 0 4px currentColor;
 }
 
-.hp-bar-chart {
+.territory-bar-chart {
   display: flex;
   align-items: flex-end;
   gap: 6px;
@@ -253,7 +253,7 @@ main {
   margin: 12px 0 4px;
 }
 
-.hp-bar {
+.territory-bar {
   flex: 1;
   height: 100%;
   display: flex;
@@ -265,7 +265,7 @@ main {
   overflow: hidden;
 }
 
-.hp-bar-fill {
+.territory-bar-fill {
   width: 100%;
   transition: height 0.2s;
 }
