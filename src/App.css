@@ -244,3 +244,79 @@ main {
   margin-right: 6px;
   box-shadow: 0 0 4px currentColor;
 }
+
+.hp-bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 90px;
+  margin: 12px 0 4px;
+}
+
+.hp-bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 3px 3px 0 0;
+  overflow: hidden;
+}
+
+.hp-bar-fill {
+  width: 100%;
+  transition: height 0.2s;
+}
+
+/* チーム別ロジックなど、開閉できるセクションの見出しボタン(h2の見た目を保ったままクリック可能にする)。 */
+.section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 0 10px;
+  cursor: pointer;
+  color: inherit;
+}
+
+.section-toggle:hover {
+  color: var(--accent);
+}
+
+.section-toggle h2 {
+  margin: 0;
+}
+
+.control-panel button.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+}
+
+/* トグル型のアイコンボタン(視界範囲/攻撃射程/観測パッチなど)。OFF時はdisabledと同じ暗さに
+   見えるようアイコンの色だけを薄くする(枠・背景はopacityを使わないので変化しない)。hover時は
+   その色だけを明るく戻す — 縁の色や背景はhoverでも変えない。 */
+.control-panel button.icon-button.toggle {
+  color: rgba(111, 232, 255, 0.4);
+}
+
+/* :not(.toggle-on)で範囲を絞る — 汎用のbutton:hoverルール(背景・box-shadowを付ける)を
+   OFF状態のトグルに限って打ち消し、色だけが変わるようにする。ON状態のホバーは汎用ルール通り。 */
+.control-panel button.icon-button.toggle:not(.toggle-on):hover:not(:disabled) {
+  background: none;
+  box-shadow: none;
+  color: var(--text-h);
+}
+
+.control-panel button.icon-button.toggle.toggle-on {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 10px rgba(45, 226, 255, 0.4);
+}

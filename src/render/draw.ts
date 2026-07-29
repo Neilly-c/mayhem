@@ -74,6 +74,42 @@ export function drawFrame(
   if (options.selectedUnitId !== null) {
     drawUnitOverlays(ctx, state, camera, options)
   }
+  // ユーザー要望: tick・リング段階をマップの端にオーバーレイ表示する。最前面に乗せるため最後に描く。
+  drawStatusOverlay(ctx, state)
+}
+
+const STATUS_OVERLAY_PADDING = 8
+const STATUS_OVERLAY_LINE_HEIGHT = 18
+const STATUS_OVERLAY_MARGIN = 10
+
+function drawStatusOverlay(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const ring = state.ring
+  const lines = [
+    `Tick ${state.tick}`,
+    `Round ${ring.stage} (${ring.phase}, ${ring.phaseTicks}t) r=${ring.activeRadius.toFixed(1)}`,
+  ]
+
+  ctx.save()
+  ctx.font = '13px monospace'
+  ctx.textBaseline = 'top'
+
+  const textWidth = Math.max(...lines.map((line) => ctx.measureText(line).width))
+  const boxWidth = textWidth + STATUS_OVERLAY_PADDING * 2
+  const boxHeight = lines.length * STATUS_OVERLAY_LINE_HEIGHT + STATUS_OVERLAY_PADDING * 2 - 4
+  const x = STATUS_OVERLAY_MARGIN
+  const y = STATUS_OVERLAY_MARGIN
+
+  ctx.fillStyle = 'rgba(10, 15, 30, 0.75)'
+  ctx.fillRect(x, y, boxWidth, boxHeight)
+  ctx.strokeStyle = 'rgba(45, 226, 255, 0.4)'
+  ctx.lineWidth = 1
+  ctx.strokeRect(x, y, boxWidth, boxHeight)
+
+  ctx.fillStyle = '#6fe8ff'
+  lines.forEach((line, i) => {
+    ctx.fillText(line, x + STATUS_OVERLAY_PADDING, y + STATUS_OVERLAY_PADDING + i * STATUS_OVERLAY_LINE_HEIGHT)
+  })
+  ctx.restore()
 }
 
 function drawNodes(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera): void {
@@ -137,7 +173,8 @@ function drawRingBoundaries(ctx: CanvasRenderingContext2D, state: GameState, cam
   ctx.arc(center.x, center.y, Math.max(0, ring.activeRadius * camera.scale), 0, Math.PI * 2)
   ctx.stroke()
 
-  if (ring.phase === 'warn') {
+  // ユーザー要望: 収縮完了時の予報円は収縮中(shrink)も表示し続ける(以前はwarnフェーズのみだった)。
+  if (ring.phase === 'warn' || ring.phase === 'shrink') {
     const nextCenter = worldToScreen(camera, world(state.nodes[ring.nextCenter]))
     ctx.strokeStyle = RING_NEXT_BOUNDARY_COLOR
     ctx.setLineDash([6, 6])

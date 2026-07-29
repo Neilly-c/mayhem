@@ -45,15 +45,20 @@ export class Simulation {
       .filter((u) => u.alive)
       .sort((a, b) => a.teamId - b.teamId || a.id - b.id)
 
-    const moveIntents = order.map((unit) => ({
-      unit,
-      intent: computeMovementIntent(this.state, unit),
-    }))
+    // ユーザー要望: 同一ノードへの複数ユニット共存を禁止する(味方同士も含む)。`claimedTo`は
+    // 「現在誰かが占有している(向かっている)ノード」の集合で、tick開始時点の全ユニットの
+    // `pos.to`から初期化し、1体処理するたびに自分の分を解放してから意思決定させ、確定した
+    // 新しい`pos.to`を再度加える — (teamId,unitId)の既存の決定的順序をそのまま先着判定に流用する。
+    const claimedTo = new Set(order.map((u) => u.pos.to))
     const passedThroughNodes: { teamId: number; node: number }[] = []
-    for (const { unit, intent } of moveIntents) {
-      if (!intent) continue
-      const visited = applyMovementIntent(this.state, unit, intent)
-      for (const node of visited) passedThroughNodes.push({ teamId: unit.teamId, node })
+    for (const unit of order) {
+      claimedTo.delete(unit.pos.to)
+      const intent = computeMovementIntent(this.state, unit, claimedTo)
+      if (intent) {
+        const visited = applyMovementIntent(this.state, unit, intent, claimedTo)
+        for (const node of visited) passedThroughNodes.push({ teamId: unit.teamId, node })
+      }
+      claimedTo.add(unit.pos.to)
     }
 
     const combatIntents: CombatIntent[] = []

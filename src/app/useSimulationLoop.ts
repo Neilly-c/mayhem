@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type * as tf from '@tensorflow/tfjs'
-import type { GameState, SimConfig } from '../sim'
+import type { GameState, SimConfig, TickEvents } from '../sim'
 import { Simulation, isGameOver } from '../sim'
 import type { BotKind, UnitDecision } from '../agents'
 import { createTeamRoutedDecisionSource } from '../agents'
@@ -17,6 +17,7 @@ import {
   pickBestCheckpoint,
   pickLatestCheckpoint,
 } from './policyModel'
+import { playGameOver, playHit, playKill, playRingShrink, playRingWarn } from './sound'
 
 export interface SimulationFormConfig {
   mapRadius: number
@@ -82,7 +83,11 @@ interface Driver {
   log: LoggedDecision[] | null
 }
 
-function stepOnceWithDecisions(driver: Driver, onDecision?: (entry: LoggedDecision) => void): void {
+function stepOnceWithDecisions(
+  driver: Driver,
+  onDecision?: (entry: LoggedDecision) => void,
+  onTickEvents?: (events: TickEvents) => void,
+): void {
   const { sim, decisionSource } = driver
   if (sim.state.tick % sim.state.config.decisionInterval === 0) {
     const aliveIds = sim.state.units.filter((u) => u.alive).map((u) => u.id)
@@ -93,7 +98,8 @@ function stepOnceWithDecisions(driver: Driver, onDecision?: (entry: LoggedDecisi
     }
     onDecision?.(decisionsToLogEntry(sim.state.tick, decisions))
   }
-  sim.step()
+  const events = sim.step()
+  onTickEvents?.(events)
 }
 
 const MAX_TICKS_PER_FRAME = 2000
@@ -148,6 +154,29 @@ export function useSimulationLoop() {
     seed: DEFAULT_SEED,
     config: buildSimConfig(DEFAULT_FORM_CONFIG),
   })
+  // ユーザー要望: リング予告/収縮開始・ゲーム終了のSEは「状態が変化した瞬間」だけ鳴らすため、
+  // 直前tickの値をrefで保持して比較する。エピソードが変わるたびリセットする(前エピソードの
+  // phase/決着状態を引きずって、新エピソード開始直後に誤発火/無発火しないように)。
+  const prevRingPhaseRef = useRef<GameState['ring']['phase'] | null>(null)
+  const prevGameOverRef = useRef(false)
+
+  const handleTickEvents = useCallback((events: TickEvents) => {
+    const driver = driverRef.current
+    if (!driver) return
+    if (events.combat.length > 0) playHit()
+    if (events.deaths.length > 0) playKill()
+
+    const phase = driver.sim.state.ring.phase
+    if (phase !== prevRingPhaseRef.current) {
+      if (phase === 'warn') playRingWarn()
+      else if (phase === 'shrink') playRingShrink()
+      prevRingPhaseRef.current = phase
+    }
+
+    const over = isGameOver(driver.sim.state)
+    if (over && !prevGameOverRef.current) playGameOver()
+    prevGameOverRef.current = over
+  }, [])
 
   const reset = useCallback((nextSeed: number, form: SimulationFormConfig) => {
     const simConfig = buildSimConfig(form)
@@ -158,6 +187,8 @@ export function useSimulationLoop() {
     }
     logRef.current = []
     lastSeedConfigRef.current = { seed: nextSeed, config: simConfig }
+    prevRingPhaseRef.current = null
+    prevGameOverRef.current = false
     setSeed(nextSeed)
     setConfigForm(form)
     setMode('live')
@@ -229,13 +260,17 @@ export function useSimulationLoop() {
   const stepOnce = useCallback(() => {
     const driver = driverRef.current
     if (!driver) return
-    stepOnceWithDecisions(driver, (entry) => {
-      if (driver.log === null) logRef.current.push(entry)
-    })
+    stepOnceWithDecisions(
+      driver,
+      (entry) => {
+        if (driver.log === null) logRef.current.push(entry)
+      },
+      handleTickEvents,
+    )
     setTick(driver.sim.state.tick)
     setGameOver(isGameOver(driver.sim.state))
     if (driver.log === null && logRef.current.length > 0) setCanReplay(true)
-  }, [])
+  }, [handleTickEvents])
 
   const play = useCallback(() => setPlaying(true), [])
   const pause = useCallback(() => setPlaying(false), [])
@@ -258,9 +293,13 @@ export function useSimulationLoop() {
         // ユーザー要望: 生存チームが1チーム以下になった時点でシミュレーションを止める(自動一時停止)。
         let over = isGameOver(driver.sim.state)
         while (!over && ticksToRun-- > 0) {
-          stepOnceWithDecisions(driver, (entry) => {
-            if (driver.log === null) logRef.current.push(entry)
-          })
+          stepOnceWithDecisions(
+            driver,
+            (entry) => {
+              if (driver.log === null) logRef.current.push(entry)
+            },
+            handleTickEvents,
+          )
           over = isGameOver(driver.sim.state)
         }
         setTick(driver.sim.state.tick)
@@ -276,7 +315,7 @@ export function useSimulationLoop() {
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [playing, ticksPerSecond])
+  }, [playing, ticksPerSecond, handleTickEvents])
 
   const startReplay = useCallback(() => {
     const { seed: replaySeed, config } = lastSeedConfigRef.current
@@ -286,6 +325,8 @@ export function useSimulationLoop() {
       decisionSource: createReplayDecisionSource(log),
       log,
     }
+    prevRingPhaseRef.current = null
+    prevGameOverRef.current = false
     setMode('replay')
     setTick(0)
     setGameOver(false)
@@ -305,6 +346,8 @@ export function useSimulationLoop() {
       decisionSource: createReplayDecisionSource(log),
       log,
     }
+    prevRingPhaseRef.current = null
+    prevGameOverRef.current = false
     setMode('replay')
     setTick(0)
     setGameOver(false)

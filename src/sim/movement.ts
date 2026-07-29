@@ -54,7 +54,12 @@ function waitIntent(
   }
 }
 
-function computeDirectionIntent(state: GameState, unit: UnitState, dir: number): MovementIntent {
+function computeDirectionIntent(
+  state: GameState,
+  unit: UnitState,
+  dir: number,
+  claimedTo: ReadonlySet<number>,
+): MovementIntent {
   if (unit.pos.from !== unit.pos.to) {
     // Mid-edge: low-level direction commands only take effect once standing on a node.
     return {
@@ -76,8 +81,10 @@ function computeDirectionIntent(state: GameState, unit: UnitState, dir: number):
     return tn.q === target.q && tn.r === target.r
   })
 
-  if (targetIdx === undefined) {
-    // Wall or map edge in that direction; RL action masking should prevent this, but stay put.
+  // ユーザー要望: 同一ノードへの複数ユニット共存禁止(味方も含む)。moveDirectionは経路探索を
+  // 持たない生の1手コマンドなので、隣接ノードが既に占有されている場合は壁と同様その場で待機する
+  // (`buildActionMask`側でもこの状況を非合法手としてマスクする — §11.3)。
+  if (targetIdx === undefined || claimedTo.has(targetIdx)) {
     return waitIntent(unit, null, null)
   }
 
@@ -93,7 +100,7 @@ function computeDirectionIntent(state: GameState, unit: UnitState, dir: number):
   }
 }
 
-function computePathIntent(state: GameState, unit: UnitState): MovementIntent {
+function computePathIntent(state: GameState, unit: UnitState, claimedTo: ReadonlySet<number>): MovementIntent {
   let destination = unit.destination
   let path = unit.path
 
@@ -110,10 +117,10 @@ function computePathIntent(state: GameState, unit: UnitState): MovementIntent {
   if (destination === null) return waitIntent(unit, null, null)
 
   if (path === null) {
-    path = findPath(state.nodes, state.neighbors, unit.pos.to, destination)
+    path = findPath(state.nodes, state.neighbors, unit.pos.to, destination, claimedTo)
     if (path === null) {
-      // Unreachable — shouldn't happen given the single-connected-component guarantee (§2.2),
-      // but retry next tick per §10 rather than getting permanently stuck.
+      // Unreachable (walled off) or currently occupied — retry next tick per §10 rather than
+      // getting permanently stuck; a blocking unit may well have moved away by then.
       return waitIntent(unit, destination, null)
     }
   }
@@ -137,7 +144,9 @@ function computePathIntent(state: GameState, unit: UnitState): MovementIntent {
   }
 
   if (midEdge) {
-    // Continue toward `to`; path (relative to `to`) is untouched.
+    // Continue toward `to`; path (relative to `to`) is untouched. `to` is already exclusively
+    // claimed by this unit (occupancy is checked before a unit ever commits to a new `to`), so no
+    // re-check is needed here.
     return {
       unitId: unit.id,
       wait: false,
@@ -155,7 +164,23 @@ function computePathIntent(state: GameState, unit: UnitState): MovementIntent {
     return waitIntent(unit, destination, path)
   }
 
-  const nextHop = path[0]
+  let nextHop = path[0]
+  let remainingPath = path.slice(1)
+
+  // ユーザー要望: 次に進もうとしているノードが他ユニットに占有されていたら、そこから再探索する。
+  // まだ辺に乗っていない(stationary)段階での発見なので「直前のノードへ戻る」必要はなく、
+  // ここでその場から新しい経路を引き直すだけでよい(バックトラックが最短になる場合は、
+  // 上のmidEdge分岐が次tick以降で自然にそれを検出し、既存の辺反転ロジックが適用される)。
+  if (claimedTo.has(nextHop)) {
+    const rerouted = findPath(state.nodes, state.neighbors, unit.pos.to, destination, claimedTo)
+    if (rerouted === null || rerouted.length === 0) {
+      // No alternate route right now (or already effectively at destination) — wait and retry.
+      return waitIntent(unit, destination, null)
+    }
+    nextHop = rerouted[0]
+    remainingPath = rerouted.slice(1)
+  }
+
   return {
     unitId: unit.id,
     wait: false,
@@ -164,17 +189,33 @@ function computePathIntent(state: GameState, unit: UnitState): MovementIntent {
     progress: 0,
     speed: computeSpeed(state, unit.pos.to, nextHop, unit.teamId),
     destination,
-    path: path.slice(1),
+    path: remainingPath,
   }
 }
 
-/** Read phase (§4.2): compute one unit's movement intent from the pre-tick state only. */
-export function computeMovementIntent(state: GameState, unit: UnitState): MovementIntent | null {
+/**
+ * Read phase (§4.2): compute one unit's movement intent from the pre-tick state only.
+ * `claimedTo`: ユーザー要望 — 同一ノードへの複数ユニット共存を禁止するための、現在確定している
+ * (このユニット自身を除く)占有先ノード集合。`sim.ts`がユニットを`(teamId,unitId)`順に1体ずつ
+ * compute→applyし、確定するたびに更新しながら渡す(先着順の決定的な衝突解決)。
+ */
+export function computeMovementIntent(
+  state: GameState,
+  unit: UnitState,
+  claimedTo: ReadonlySet<number>,
+): MovementIntent | null {
   if (!unit.alive) return null
-  if (unit.command.type === 'moveDirection') {
-    return computeDirectionIntent(state, unit, unit.command.dir)
+  const intent =
+    unit.command.type === 'moveDirection'
+      ? computeDirectionIntent(state, unit, unit.command.dir, claimedTo)
+      : computePathIntent(state, unit, claimedTo)
+
+  // 最終防衛線: どの分岐由来であっても、移動先が(発見時点で)占有済みノードであれば必ず待機に
+  // 差し替える。個別分岐の再探索ロジックに漏れがあっても、この不変条件だけは常に守られる。
+  if (intent.to !== intent.from && claimedTo.has(intent.to)) {
+    return waitIntent(unit, intent.destination, null)
   }
-  return computePathIntent(state, unit)
+  return intent
 }
 
 /**
@@ -186,7 +227,12 @@ export function computeMovementIntent(state: GameState, unit: UnitState): Moveme
  * need "did this unit touch that node this tick at all" (§6's instant neutral-node capture on
  * mere pass-through, not just stopping) can't derive it from the final `pos` alone.
  */
-export function applyMovementIntent(state: GameState, unit: UnitState, intent: MovementIntent): number[] {
+export function applyMovementIntent(
+  state: GameState,
+  unit: UnitState,
+  intent: MovementIntent,
+  claimedTo: ReadonlySet<number>,
+): number[] {
   unit.destination = intent.destination
 
   if (intent.wait) {
@@ -211,6 +257,14 @@ export function applyMovementIntent(state: GameState, unit: UnitState, intent: M
       break
     }
     const nextHop = path[0]
+    // ユーザー要望: 1tick内で複数ノードを跨ぐ(オーバーシュート)最中に次のホップが他ユニットに
+    // 占有されていたら、直前に到着したノード(`arrived`、既に`from===to`としてstationary)で
+    // 止まる。`path`をnullにして次tickのcomputePathIntentに再探索させる。
+    if (claimedTo.has(nextHop)) {
+      progress = 0
+      path = null
+      break
+    }
     path = path.slice(1)
     to = nextHop
     progress += computeSpeed(state, from, to, unit.teamId)

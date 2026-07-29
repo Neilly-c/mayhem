@@ -23,18 +23,16 @@ interface Props {
 export function DebugPanel({ state, selectedUnitId }: Props) {
   const selectedUnit = selectedUnitId !== null ? state.units.find((u) => u.id === selectedUnitId) : undefined
 
+  const teamSummaries = state.teams.map((team) => {
+    const teamUnits = state.units.filter((u) => u.teamId === team.id)
+    const aliveUnits = teamUnits.filter((u) => u.alive)
+    const totalHp = aliveUnits.reduce((sum, u) => sum + u.hp, 0)
+    const maxHp = teamUnits.length * state.config.unitHP
+    return { team, teamUnits, aliveUnits, totalHp, maxHp, rank: confirmedRank(state, team.id) }
+  })
+
   return (
     <div className="debug-panel">
-      <h2>状態</h2>
-      <dl>
-        <dt>tick</dt>
-        <dd>{state.tick}</dd>
-        <dt>リング段階</dt>
-        <dd>
-          {state.ring.stage} ({state.ring.phase}, {state.ring.phaseTicks}t) 半径{state.ring.activeRadius.toFixed(1)}
-        </dd>
-      </dl>
-
       <h3>チーム</h3>
       <table className="team-status-table">
         <thead>
@@ -47,28 +45,34 @@ export function DebugPanel({ state, selectedUnitId }: Props) {
           </tr>
         </thead>
         <tbody>
-          {state.teams.map((team) => {
-            const teamUnits = state.units.filter((u) => u.teamId === team.id)
-            const aliveUnits = teamUnits.filter((u) => u.alive)
-            const totalHp = aliveUnits.reduce((sum, u) => sum + u.hp, 0)
-            const rank = confirmedRank(state, team.id)
-            return (
-              <tr key={team.id} className={team.alive ? undefined : 'eliminated'}>
-                <td>
-                  <span className="team-swatch" style={{ background: teamColor(team.id) }} />
-                  {team.id}
-                </td>
-                <td>
-                  {aliveUnits.length}/{teamUnits.length}
-                </td>
-                <td>{totalHp.toFixed(1)}</td>
-                <td>{team.killCount}</td>
-                <td>{rank !== null ? `${rank}位` : '生存'}</td>
-              </tr>
-            )
-          })}
+          {teamSummaries.map(({ team, teamUnits, aliveUnits, totalHp, rank }) => (
+            <tr key={team.id} className={team.alive ? undefined : 'eliminated'}>
+              <td>
+                <span className="team-swatch" style={{ background: teamColor(team.id) }} />
+                {team.id}
+              </td>
+              <td>
+                {aliveUnits.length}/{teamUnits.length}
+              </td>
+              <td>{totalHp.toFixed(1)}</td>
+              <td>{team.killCount}</td>
+              <td>{rank !== null ? `${rank}位` : '生存'}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
+
+      {/* ユーザー要望: 状態表の下にチームHPの縦棒グラフを追加する。 */}
+      <div className="hp-bar-chart">
+        {teamSummaries.map(({ team, totalHp, maxHp }) => {
+          const pct = maxHp > 0 ? (totalHp / maxHp) * 100 : 0
+          return (
+            <div key={team.id} className="hp-bar" title={`チーム${team.id}: ${totalHp.toFixed(0)} / ${maxHp}`}>
+              <div className="hp-bar-fill" style={{ height: `${pct}%`, background: teamColor(team.id) }} />
+            </div>
+          )
+        })}
+      </div>
 
       <h3>選択中ユニット</h3>
       {selectedUnit ? (

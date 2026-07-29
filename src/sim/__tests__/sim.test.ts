@@ -22,6 +22,15 @@ describe('Simulation', () => {
     expect(occupied.size).toBe(sim.state.units.length)
   })
 
+  it('ユーザー要望: never lets two alive units share a node across a long run under natural (idle-explore) movement pressure on a small, dense map', () => {
+    const sim = Simulation.create(5, { mapRadius: 5, wallThreshold: 0, teamCount: 4, unitsPerTeam: 3 })
+    for (let i = 0; i < 400; i++) {
+      sim.step()
+      const occupiedNodes = sim.state.units.filter((u) => u.alive).map((u) => u.pos.to)
+      expect(new Set(occupiedNodes).size).toBe(occupiedNodes.length)
+    }
+  })
+
   it('runs headlessly for many ticks without throwing', () => {
     const sim = Simulation.create(2, TEST_CONFIG)
     expect(() => {

@@ -1,12 +1,12 @@
 const TEAM_PALETTE: readonly [number, number, number][] = [
-  [230, 25, 75],
+  [245, 25, 125],
   [60, 240, 75],
   [245, 130, 49],
-  [204, 212, 244],
-  [240, 50, 230],
+  [24, 252, 204],
+  [200, 120, 245],
+  [45, 140, 250],
+  [87, 49, 246],
   [255, 225, 25],
-  [27, 49, 246],
-  [145, 30, 180],
 ]
 
 export function teamColor(teamId: number, alpha = 1): string {
@@ -17,7 +17,7 @@ export function teamColor(teamId: number, alpha = 1): string {
 // 標高[0,1] -> 濃紺(低地)から明るいシアン(高地)へのグラデーション。ユーザー要望: グレースケールは
 // 高低差が読み取りづらかったため、輝度差だけでなく色相差も使うことでコントラストを上げる。
 const ELEVATION_LOW: readonly [number, number, number] = [6, 10, 22]
-const ELEVATION_HIGH: readonly [number, number, number] = [120, 235, 255]
+const ELEVATION_HIGH: readonly [number, number, number] = [220, 235, 255]
 
 export function elevationColor(elevation: number): string {
   const t = Math.min(1, Math.max(0, elevation))

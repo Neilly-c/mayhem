@@ -4,6 +4,7 @@ import type { GameState } from '../sim'
 import { unitWorldPos } from '../sim'
 import type { Camera } from '../render'
 import { drawFrame, fitCamera, worldToScreen } from '../render'
+import { playSelect } from './sound'
 
 const CANVAS_WIDTH = 960
 const CANVAS_HEIGHT = 720
@@ -71,6 +72,7 @@ export function SimulationCanvas({
         closestId = unit.id
       }
     }
+    if (closestId !== null) playSelect()
     onSelectUnit(closestId)
   }
 

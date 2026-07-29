@@ -3,7 +3,10 @@ import { DIRECTIONS, axialAdd } from '../sim'
 import type { ActionInput, ActionMask } from './types'
 import type { VisibleEnemy } from './visibility'
 
-/** §11.3 行動マスク: 壁向きの移動、射程外/非視認/非生存な攻撃対象を無効(false)にする。 */
+/** §11.3 行動マスク: 壁向きの移動、射程外/非視認/非生存な攻撃対象を無効(false)にする。
+ * ユーザー要望: 同一ノードへの複数ユニット共存を禁止したため、既に他ユニットが占有(向かって)
+ * いる隣接ノードへのmoveDirectionも非合法手としてマスクする — でないと、選んでも`movement.ts`
+ * 側で黙って待機に化ける「選べるのに効かない行動」が生まれてしまう(以前のidle修正と同種の罠)。 */
 export function buildActionMask(state: GameState, unit: UnitState, visibleEnemies: VisibleEnemy[]): ActionMask {
   const node = state.nodes[unit.pos.to]
   const move: boolean[] = [true] // 0 = その場に静止は常に合法
@@ -12,7 +15,9 @@ export function buildActionMask(state: GameState, unit: UnitState, visibleEnemie
     const targetIdx = state.neighbors[unit.pos.to].find(
       (n) => state.nodes[n].q === target.q && state.nodes[n].r === target.r,
     )
-    move.push(targetIdx !== undefined)
+    const occupied =
+      targetIdx !== undefined && state.units.some((u) => u.alive && u.id !== unit.id && u.pos.to === targetIdx)
+    move.push(targetIdx !== undefined && !occupied)
   }
 
   const attack: boolean[] = [true] // 0 = 攻撃しないは常に合法

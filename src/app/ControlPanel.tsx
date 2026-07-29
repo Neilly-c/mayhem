@@ -1,5 +1,19 @@
 import { useState } from 'react'
+import {
+  ChevronDown,
+  ChevronRight,
+  Crosshair,
+  Eye,
+  Grid3x3,
+  Pause,
+  Play,
+  RotateCcw,
+  StepForward,
+  Volume2,
+  VolumeX,
+} from 'lucide-react'
 import { teamColor } from '../render'
+import { isMuted, playClick, playHover, setMuted } from './sound'
 import type { PlaybackMode, RlSlot, RlSlotStatus, SimulationFormConfig, TeamLogicKind } from './useSimulationLoop'
 
 const BOT_LABEL: Record<TeamLogicKind, string> = {
@@ -70,17 +84,67 @@ export function ControlPanel({
   const [mapRadiusInput, setMapRadiusInput] = useState(configForm.mapRadius)
   const [teamCountInput, setTeamCountInput] = useState(configForm.teamCount)
   const [unitsPerTeamInput, setUnitsPerTeamInput] = useState(configForm.unitsPerTeam)
+  const [teamLogicExpanded, setTeamLogicExpanded] = useState(false)
+  const [muted, setMutedState] = useState(isMuted())
+
+  /** ユーザー要望: ボタンのhover/clickにSEを付ける。全ボタン共通でこの2つをラップして使う。 */
+  const withClick = (fn: () => void) => () => {
+    playClick()
+    fn()
+  }
 
   return (
     <div className="control-panel">
       <section>
         <h2>再生</h2>
         <div className="button-row">
-          <button type="button" onClick={playing ? onPause : onPlay}>
-            {playing ? '停止' : '再生'}
+          <button
+            type="button"
+            className="icon-button"
+            onClick={withClick(playing ? onPause : onPlay)}
+            onMouseEnter={playHover}
+            title={playing ? '停止' : '再生'}
+            aria-label={playing ? '停止' : '再生'}
+          >
+            {playing ? <Pause size={18} /> : <Play size={18} />}
           </button>
-          <button type="button" onClick={onStepOnce} disabled={playing}>
-            1tickステップ
+          <button
+            type="button"
+            className="icon-button"
+            onClick={withClick(onStepOnce)}
+            onMouseEnter={playHover}
+            disabled={playing}
+            title="1tickステップ"
+            aria-label="1tickステップ"
+          >
+            <StepForward size={18} />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={withClick(onStartReplay)}
+            onMouseEnter={playHover}
+            disabled={!canReplay}
+            title="直前のライブ実行をリプレイ"
+            aria-label="直前のライブ実行をリプレイ"
+          >
+            <RotateCcw size={18} />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => {
+              const next = !muted
+              setMuted(next)
+              setMutedState(next)
+              playClick()
+            }}
+            onMouseEnter={playHover}
+            title={muted ? 'ミュート中(クリックで解除)' : 'SEを鳴らす(クリックでミュート)'}
+            aria-label={muted ? 'ミュート解除' : 'ミュート'}
+            aria-pressed={muted}
+          >
+            {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
           </button>
         </div>
         <label>
@@ -103,7 +167,16 @@ export function ControlPanel({
         <h2>マップ / seed</h2>
         <label>
           seed
-          <input type="number" value={seedInput} onChange={(e) => setSeedInput(Number(e.target.value))} />
+          <input
+            type="number"
+            value={seedInput}
+            disabled={playing}
+            onChange={(e) => {
+              const nextSeed = Number(e.target.value)
+              setSeedInput(nextSeed)
+              onReset(nextSeed, configForm)
+            }}
+          />
         </label>
         <label>
           mapRadius
@@ -112,6 +185,7 @@ export function ControlPanel({
             min={3}
             max={25}
             value={mapRadiusInput}
+            disabled={playing}
             onChange={(e) => setMapRadiusInput(Number(e.target.value))}
           />
         </label>
@@ -122,6 +196,7 @@ export function ControlPanel({
             min={2}
             max={8}
             value={teamCountInput}
+            disabled={playing}
             onChange={(e) => setTeamCountInput(Number(e.target.value))}
           />
         </label>
@@ -132,68 +207,97 @@ export function ControlPanel({
             min={1}
             max={6}
             value={unitsPerTeamInput}
+            disabled={playing}
             onChange={(e) => setUnitsPerTeamInput(Number(e.target.value))}
           />
         </label>
         <button
           type="button"
-          onClick={() =>
+          disabled={playing}
+          onClick={withClick(() =>
             onReset(seedInput, {
               mapRadius: mapRadiusInput,
               teamCount: teamCountInput,
               unitsPerTeam: unitsPerTeamInput,
-            })
-          }
+            }),
+          )}
+          onMouseEnter={playHover}
         >
           新しいマップで開始
         </button>
       </section>
 
       <section>
-        <h2>チーム別ロジック</h2>
-        {Array.from({ length: configForm.teamCount }, (_, teamId) => teamId).map((teamId) => {
-          const kind = botAssignment.get(teamId) ?? 'scripted'
-          const statusLabel = kind === 'rlBest' || kind === 'rlLatest' ? RL_STATUS_LABEL[rlSlotStatus[kind]] : ''
-          return (
-            <label key={teamId}>
-              <span>
-                <span className="team-swatch" style={{ background: teamColor(teamId) }} />
-                チーム{teamId}
-              </span>
-              <select value={kind} onChange={(e) => onSetTeamBot(teamId, e.target.value as TeamLogicKind)}>
-                {(Object.keys(BOT_LABEL) as TeamLogicKind[]).map((k) => (
-                  <option key={k} value={k}>
-                    {BOT_LABEL[k]}
-                  </option>
-                ))}
-              </select>
-              {statusLabel && <p className="mode-indicator">{statusLabel}</p>}
-            </label>
-          )
-        })}
-      </section>
-
-      <section>
-        <h2>リプレイ</h2>
-        <button type="button" onClick={onStartReplay} disabled={!canReplay}>
-          直前のライブ実行をリプレイ
+        <button
+          type="button"
+          className="section-toggle"
+          onClick={withClick(() => setTeamLogicExpanded((v) => !v))}
+          onMouseEnter={playHover}
+          aria-expanded={teamLogicExpanded}
+        >
+          {teamLogicExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <h2>チーム別ロジック</h2>
         </button>
+        {teamLogicExpanded &&
+          Array.from({ length: configForm.teamCount }, (_, teamId) => teamId).map((teamId) => {
+            const kind = botAssignment.get(teamId) ?? 'scripted'
+            const statusLabel = kind === 'rlBest' || kind === 'rlLatest' ? RL_STATUS_LABEL[rlSlotStatus[kind]] : ''
+            return (
+              <label key={teamId}>
+                <span>
+                  <span className="team-swatch" style={{ background: teamColor(teamId) }} />
+                  チーム{teamId}
+                </span>
+                <select value={kind} onChange={(e) => onSetTeamBot(teamId, e.target.value as TeamLogicKind)}>
+                  {(Object.keys(BOT_LABEL) as TeamLogicKind[]).map((k) => (
+                    <option key={k} value={k}>
+                      {BOT_LABEL[k]}
+                    </option>
+                  ))}
+                </select>
+                {statusLabel && <p className="mode-indicator">{statusLabel}</p>}
+              </label>
+            )
+          })}
       </section>
 
       <section>
         <h2>デバッグ表示(選択中ユニットのみ)</h2>
-        <label>
-          <input type="checkbox" checked={showVision} onChange={onToggleVision} />
-          視界範囲
-        </label>
-        <label>
-          <input type="checkbox" checked={showAttackRange} onChange={onToggleAttackRange} />
-          攻撃射程
-        </label>
-        <label>
-          <input type="checkbox" checked={showPatch} onChange={onTogglePatch} />
-          観測パッチ
-        </label>
+        <div className="button-row">
+          <button
+            type="button"
+            className={`icon-button toggle${showVision ? ' toggle-on' : ''}`}
+            onClick={withClick(onToggleVision)}
+            onMouseEnter={playHover}
+            title="視界範囲"
+            aria-label="視界範囲"
+            aria-pressed={showVision}
+          >
+            <Eye size={18} />
+          </button>
+          <button
+            type="button"
+            className={`icon-button toggle${showAttackRange ? ' toggle-on' : ''}`}
+            onClick={withClick(onToggleAttackRange)}
+            onMouseEnter={playHover}
+            title="攻撃射程"
+            aria-label="攻撃射程"
+            aria-pressed={showAttackRange}
+          >
+            <Crosshair size={18} />
+          </button>
+          <button
+            type="button"
+            className={`icon-button toggle${showPatch ? ' toggle-on' : ''}`}
+            onClick={withClick(onTogglePatch)}
+            onMouseEnter={playHover}
+            title="観測パッチ"
+            aria-label="観測パッチ"
+            aria-pressed={showPatch}
+          >
+            <Grid3x3 size={18} />
+          </button>
+        </div>
       </section>
     </div>
   )

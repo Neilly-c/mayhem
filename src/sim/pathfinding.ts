@@ -47,15 +47,21 @@ class MinHeap {
  * A* over passable nodes. `hexDist` is an admissible & consistent heuristic since every
  * edge has uniform cost 1 and the hop distance is a lower bound on the number of edges.
  * Returns the path from `start` to `goal` excluding `start`, or null if unreachable.
+ *
+ * ユーザー要望: `blocked`(他ユニットが占有中のノード)を渡すと、それらを迂回する経路を探す
+ * (`start`自身は`blocked`に含まれていても常に許可 — 自分の現在地を自分自身が塞ぐことはない)。
+ * `goal`が`blocked`なら即座に`null`(今は誰かが占有しているノードへは経路を引けない)。
  */
 export function findPath(
   nodes: NodeState[],
   neighbors: number[][],
   start: number,
   goal: number,
+  blocked?: ReadonlySet<number>,
 ): number[] | null {
   if (start === goal) return []
   if (!nodes[start].passable || !nodes[goal].passable) return null
+  if (blocked?.has(goal)) return null
 
   const goalNode = nodes[goal]
   const heuristic = (i: number): number => hexDist(nodes[i], goalNode)
@@ -84,6 +90,7 @@ export function findPath(
     const currentG = gScore.get(current) as number
     for (const next of neighbors[current]) {
       if (closed.has(next)) continue
+      if (blocked?.has(next) && next !== goal) continue
       const tentativeG = currentG + 1
       if (tentativeG < (gScore.get(next) ?? Infinity)) {
         gScore.set(next, tentativeG)

@@ -9,9 +9,40 @@ function shuffle<T>(arr: T[], rng: RngFn): void {
   }
 }
 
+/** ユーザー要望: チーム同士の初期配置が接近し過ぎないよう、先頭2チームはマップ中央付近
+ * (`centerTeamCount`個の方位セクタのうち中心に最も近いノード)へ、残りのチームは外周部
+ * (残りのセクタのうち中心から最も遠いノード)へ、それぞれ方位を均等分割して配置する。
+ * `teamCount<=2`なら全チームが中央側の扱いになる(外周チームが0になるため、周方向分割は行わない)。 */
+function pickSectorSpawn(
+  passableIndices: number[],
+  occupied: Set<number>,
+  nodes: NodeState[],
+  cx: number,
+  cy: number,
+  predicate: (angle: number) => boolean,
+  pickFarthest: boolean,
+): number {
+  let bestIdx = -1
+  let bestDist = pickFarthest ? -Infinity : Infinity
+  for (const i of passableIndices) {
+    if (occupied.has(i)) continue
+    const w = world(nodes[i])
+    let angle = Math.atan2(w.y - cy, w.x - cx)
+    if (angle < 0) angle += Math.PI * 2
+    if (!predicate(angle)) continue
+    const dist = Math.hypot(w.x - cx, w.y - cy)
+    if (pickFarthest ? dist > bestDist : dist < bestDist) {
+      bestDist = dist
+      bestIdx = i
+    }
+  }
+  return bestIdx
+}
+
 /**
- * §3.1 スポーン: 各チームをマップ外周付近へ角度セクタで均等分散させ、同一チームの
- * 残り2体はBFSで最寄りの未使用ノードへ確定的に配置する。
+ * §3.1 スポーン: 先頭2チーム(`centerTeamCount`)はマップ中央付近、残りのチームは外周付近へ、
+ * それぞれ角度セクタで均等分散させる。同一チームの残りのユニットはBFSで最寄りの未使用ノードへ
+ * 確定的に配置する。
  */
 export function createTeamsAndUnits(
   seed: number,
@@ -39,35 +70,31 @@ export function createTeamsAndUnits(
   const occupied = new Set<number>()
   const spawnRng = deriveRng(seed, 'spawn')
 
+  const centerTeamCount = Math.min(1, config.teamCount)
+  const peripheryTeamCount = config.teamCount - centerTeamCount
+
   const teams: TeamState[] = []
   const units: UnitState[] = []
   let unitId = 0
 
   for (let teamId = 0; teamId < config.teamCount; teamId++) {
-    const sectorStart = (teamId / config.teamCount) * Math.PI * 2
-    const sectorEnd = ((teamId + 1) / config.teamCount) * Math.PI * 2
+    const isCenterTeam = teamId < centerTeamCount
+    const sectorIndex = isCenterTeam ? teamId : teamId - centerTeamCount
+    const sectorCount = isCenterTeam ? centerTeamCount : peripheryTeamCount
+    const sectorStart = (sectorIndex / sectorCount) * Math.PI * 2
+    const sectorEnd = ((sectorIndex + 1) / sectorCount) * Math.PI * 2
 
-    const farthestUnoccupied = (predicate: (angle: number) => boolean): number => {
-      let bestIdx = -1
-      let bestDist = -Infinity
-      for (const i of passableIndices) {
-        if (occupied.has(i)) continue
-        const w = world(nodes[i])
-        let angle = Math.atan2(w.y - cy, w.x - cx)
-        if (angle < 0) angle += Math.PI * 2
-        if (!predicate(angle)) continue
-        const dist = Math.hypot(w.x - cx, w.y - cy)
-        if (dist > bestDist) {
-          bestDist = dist
-          bestIdx = i
-        }
-      }
-      return bestIdx
-    }
-
-    let primary = farthestUnoccupied((angle) => angle >= sectorStart && angle < sectorEnd)
+    let primary = pickSectorSpawn(
+      passableIndices,
+      occupied,
+      nodes,
+      cx,
+      cy,
+      (angle) => angle >= sectorStart && angle < sectorEnd,
+      !isCenterTeam,
+    )
     // Fallback for sparse maps where no unoccupied node falls in this exact sector.
-    if (primary === -1) primary = farthestUnoccupied(() => true)
+    if (primary === -1) primary = pickSectorSpawn(passableIndices, occupied, nodes, cx, cy, () => true, !isCenterTeam)
     if (primary === -1) throw new Error(`Could not find a spawn node for team ${teamId}`)
 
     const spawnNodes = [primary]

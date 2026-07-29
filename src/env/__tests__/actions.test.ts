@@ -60,6 +60,29 @@ describe('buildActionMask', () => {
     expect(mask.move.filter((v) => v).length).toBe(3) // hold position + these two, rest are off-map
   })
 
+  it('ユーザー要望: masks out a direction whose neighbor is already occupied by another alive unit', () => {
+    const state = makeLineState()
+    state.units.push(makeUnit(1, 1, 2)) // occupies node 2, the target of dir0
+    const mask = buildActionMask(state, state.units[0], [])
+    expect(mask.move[1]).toBe(false) // dir0 = (+1,0) -> node 2, occupied
+    expect(mask.move[4]).toBe(true) // dir3 = (-1,0) -> node 0, still free
+  })
+
+  it('does not mask a direction whose neighbor is occupied only by a dead unit', () => {
+    const state = makeLineState()
+    state.units.push({ ...makeUnit(1, 1, 2), alive: false })
+    const mask = buildActionMask(state, state.units[0], [])
+    expect(mask.move[1]).toBe(true)
+  })
+
+  it('does not mask a direction toward the unit itself (never blocks its own current node)', () => {
+    // A unit's own pos.to trivially matches no direction target other than itself, but guard
+    // against a regression where the occupancy check forgets to exclude `unit.id`.
+    const state = makeLineState()
+    const mask = buildActionMask(state, state.units[0], [])
+    expect(mask.move[0]).toBe(true) // hold position (move to self) is unaffected
+  })
+
   it('marks "do not attack" always legal, and enemy slots legal only within attackRange', () => {
     const state = makeLineState({ attackRange: 1.5 })
     const near: VisibleEnemy = { unit: makeUnit(1, 1, 2), dist: 1.0 }
