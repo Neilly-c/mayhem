@@ -1,0 +1,246 @@
+#game-root {
+  display: flex;
+  flex-direction: column;
+  height: 100svh;
+  padding: 16px 24px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+main {
+  flex: 1;
+  min-height: 0; /* required so the scrollable side columns can actually constrain their own height */
+  display: flex;
+  gap: 20px;
+  overflow: hidden;
+}
+
+.map-pane {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--glow);
+}
+
+.map-pane canvas {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  display: block;
+}
+
+/* コンフィグ(ControlPanel)とゲーム内状態(DebugPanel)は別カラムにし、それぞれ独立してスクロールする。 */
+.side-column {
+  flex: 0 0 320px;
+  width: 320px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-right: 6px;
+}
+
+.side-column::-webkit-scrollbar {
+  width: 8px;
+}
+.side-column::-webkit-scrollbar-track {
+  background: transparent;
+}
+.side-column::-webkit-scrollbar-thumb {
+  background: var(--border-bright);
+  border-radius: 4px;
+}
+
+.control-panel,
+.debug-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  box-shadow: var(--glow);
+  flex-shrink: 0;
+}
+
+.control-panel section + section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.control-panel h2,
+.debug-panel h2,
+.debug-panel h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-family: var(--mono);
+  color: var(--text-h);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+.control-panel label,
+.debug-panel label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  font-size: 14px;
+}
+
+.control-panel input[type='number'] {
+  width: 80px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  color: var(--text-h);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: var(--mono);
+}
+
+.control-panel input[type='number']:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 6px rgba(45, 226, 255, 0.5);
+}
+
+.control-panel input[type='checkbox'] {
+  accent-color: var(--accent);
+}
+
+.control-panel select {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  color: var(--text-h);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.control-panel select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 6px rgba(45, 226, 255, 0.5);
+}
+
+.control-panel button {
+  background: var(--bg-panel-raised);
+  color: var(--text-h);
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition:
+    box-shadow 0.15s,
+    background 0.15s;
+}
+
+.control-panel button:hover:not(:disabled) {
+  background: var(--accent-bg);
+  box-shadow: 0 0 10px rgba(45, 226, 255, 0.4);
+}
+
+.control-panel button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.mode-indicator {
+  font-size: 13px;
+  font-family: var(--mono);
+  color: var(--accent);
+  margin: 8px 0 0;
+}
+
+.debug-panel dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 14px;
+  font-family: var(--mono);
+}
+
+.debug-panel dt {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.debug-panel dd {
+  margin: 0;
+}
+
+.team-status-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-family: var(--mono);
+}
+
+.team-status-table th {
+  text-align: left;
+  color: var(--text);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 11px;
+  padding: 2px 8px 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.team-status-table td {
+  padding: 4px 8px 4px 0;
+  color: var(--text-h);
+  border-bottom: 1px solid var(--border);
+}
+
+.team-status-table tr.eliminated td {
+  color: var(--text);
+  opacity: 0.55;
+}
+
+.replay-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.replay-list button {
+  width: 100%;
+  text-align: left;
+}
+
+.team-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 6px;
+  box-shadow: 0 0 4px currentColor;
+}

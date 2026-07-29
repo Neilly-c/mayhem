@@ -1,0 +1,98 @@
+/* サイバー空間風: 黒×ブルーを基調とした常時ダークテーマ(OSのテーマ設定に関わらず固定)。 */
+:root {
+  --text: #7fa8c9;
+  --text-h: #6fe8ff;
+  --bg: #05070d;
+  --bg-panel: #0a0f1e;
+  --bg-panel-raised: #0e1526;
+  --border: #17324a;
+  --border-bright: rgba(111, 232, 255, 0.45);
+  --code-bg: #081018;
+  --accent: #2de2ff;
+  --accent-bg: rgba(45, 226, 255, 0.1);
+  --accent-border: rgba(45, 226, 255, 0.55);
+  --social-bg: rgba(23, 50, 74, 0.5);
+  --glow: 0 0 16px rgba(45, 226, 255, 0.18);
+  --shadow:
+    rgba(0, 0, 0, 0.6) 0 10px 25px -5px, rgba(45, 226, 255, 0.08) 0 0 20px -4px;
+
+  --sans: system-ui, "Segoe UI", Roboto, sans-serif;
+  --heading: system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+
+  font: 18px/145% var(--sans);
+  letter-spacing: 0.18px;
+  color-scheme: dark;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  @media (max-width: 1024px) {
+    font-size: 16px;
+  }
+}
+
+#root {
+  width: 100%;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    linear-gradient(rgba(45, 226, 155, 0.2) 1px, transparent 1px) 0 0 / 40px
+      40px,
+    linear-gradient(90deg, rgba(45, 226, 155, 0.2) 1px, transparent 1px) 0 0 /
+      40px 40px,
+    var(--bg);
+}
+
+h1,
+h2 {
+  font-family: var(--heading);
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+h1 {
+  font-size: 56px;
+  letter-spacing: -1.68px;
+  margin: 32px 0;
+  @media (max-width: 1024px) {
+    font-size: 36px;
+    margin: 20px 0;
+  }
+}
+h2 {
+  font-size: 24px;
+  line-height: 118%;
+  letter-spacing: -0.24px;
+  margin: 0 0 8px;
+  @media (max-width: 1024px) {
+    font-size: 20px;
+  }
+}
+p {
+  margin: 0;
+}
+
+code,
+.counter {
+  font-family: var(--mono);
+  display: inline-flex;
+  border-radius: 4px;
+  color: var(--text-h);
+}
+
+code {
+  font-size: 15px;
+  line-height: 135%;
+  padding: 4px 8px;
+  background: var(--code-bg);
+}

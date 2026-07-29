@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd //c \"taskkill /F /IM node.exe\")",
+      "Bash(npx tsx *)"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+# Node <-> Python PPO bridge (see plan: Node <-> Python PPO Bridge).
+#
+# Install with:
+#   python -m venv .venv
+#   .venv/Scripts/python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cu126
+#   .venv/Scripts/python.exe -m pip install -r requirements.txt
+#
+# torch is intentionally NOT pinned to a specific build variant here: `pip install -r
+# requirements.txt` alone will pull the default (CPU-only) wheel from PyPI. If this machine has
+# an NVIDIA GPU, install torch first from the CUDA index (command above) before installing the
+# rest of this file, so pip sees it as already satisfied and does not silently swap it for CPU.
+torch>=2.13
+numpy>=2.5
+pytest>=9.0
