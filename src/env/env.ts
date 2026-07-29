@@ -4,7 +4,7 @@ import { createRewardConfig } from './rewardConfig'
 import { computeVisibleEnemies } from './visibility'
 import { buildNodeIndex, buildObservation } from './observation'
 import { buildActionMask, decodeAction } from './actions'
-import { applyTickRewards, applyWinnerBonus } from './rewards'
+import { applyTerritoryTerminalBonus, applyTickRewards } from './rewards'
 import type { ActionInput, ActionMask, Observation, RewardConfig, StepInfo, StepResult } from './types'
 
 export interface EnvOptions {
@@ -24,12 +24,16 @@ export class Env {
   private readonly rewardConfig: RewardConfig
   private readonly maxTicks?: number
   private sim!: Simulation
-  private winnerBonusAwarded = false
+  private terminalBonusAwarded = false
   /** `applyTickRewards`の次リング先回りシェイピング用、ユニットID毎の前tickポテンシャル値。
    * ユニットIDはエピソードをまたいで使い回される(`entities.ts`が毎回0から振り直す)ため、
    * `reset`のたびに必ずクリアする — でないと前エピソードの無関係なユニットの値を
    * 誤って引き継いでしまう。 */
   private ringPotentialMemo = new Map<number, number>()
+  /** `applyTickRewards`の占領率シェイピング用、チームID毎の前tickポテンシャル値。チームIDも
+   * ユニットIDと同様エピソードをまたいで0番から振り直される(`entities.ts`)ため、
+   * `ringPotentialMemo`と同じ理由で`reset`のたびに必ずクリアする。 */
+  private territoryPotentialMemo = new Map<number, number>()
 
   private constructor(simConfig: SimConfig, rewardConfig: RewardConfig, maxTicks: number | undefined) {
     this.simConfig = simConfig
@@ -57,8 +61,9 @@ export class Env {
   /** §11.5 `reset(seed) -> obs`。seedは必須(simと同様、暗黙の`Math.random()`は使わない)。 */
   reset(seed: number): Record<number, Observation> {
     this.sim = Simulation.create(seed, this.simConfig)
-    this.winnerBonusAwarded = false
+    this.terminalBonusAwarded = false
     this.ringPotentialMemo.clear()
+    this.territoryPotentialMemo.clear()
     return this.buildAgentData().observations
   }
 
@@ -87,14 +92,14 @@ export class Env {
 
     for (let i = 0; i < this.simConfig.decisionInterval; i++) {
       const events = this.sim.step()
-      applyTickRewards(rewards, events, this.sim.state, this.rewardConfig, this.ringPotentialMemo)
+      applyTickRewards(rewards, events, this.sim.state, this.rewardConfig, this.ringPotentialMemo, this.territoryPotentialMemo)
       for (const death of events.deaths) deadThisBlock.add(death.unitId)
       if (isGameOver(this.sim.state)) break
     }
 
-    if (isGameOver(this.sim.state) && !this.winnerBonusAwarded) {
-      applyWinnerBonus(rewards, this.sim.state, this.rewardConfig)
-      this.winnerBonusAwarded = true
+    if (isGameOver(this.sim.state) && !this.terminalBonusAwarded) {
+      applyTerritoryTerminalBonus(rewards, this.sim.state, this.rewardConfig)
+      this.terminalBonusAwarded = true
     }
 
     const { observations, infos } = this.buildAgentData()

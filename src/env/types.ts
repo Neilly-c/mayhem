@@ -33,17 +33,31 @@ export interface StepResult {
   infos: Record<number, StepInfo>
 }
 
-/** §11.4 報酬の合成係数。すべてconfig化し、自己対戦での調整を前提とする。 */
+/** §11.4 報酬の合成係数。すべてconfig化し、自己対戦での調整を前提とする。
+ * ユーザー要望: 陣営の目的がマップ占領率になったことに合わせて刷新(旧`territoryCoef`/`rankBonus`は
+ * 全滅順位ベースの脱落順で決まっていたため撤廃)。 */
 export interface RewardConfig {
   damageDealtCoef: number
   damageTakenCoef: number
   killBonus: number
   deathPenalty: number
-  territoryCoef: number
   survivalReward: number
   slipDamageCoef: number
-  /** rankBonus[i] = 順位i(0=優勝)のチームに与える終端ボーナス。降順、長さ=teamCount。 */
-  rankBonus: number[]
+  /** ユーザー要望: 占領率(`teamTerritoryRate`)そのものに対するpotential-basedシェイピング。
+   * `Φ(s) = teamTerritoryRate(state, teamId)`の差分`Φ(s') - Φ(s)`にこの係数を掛けて毎tick加算する
+   * (`nextRingShapingCoef`と同じ手法)。ノード新規占有イベントごとの固定ボーナスだった旧
+   * `territoryCoef`と違い、占有率が上がった分だけ+、奪還されて下がった分だけ-と対称的に効く
+   * (`rewards.ts`参照)。 */
+  territoryRateShapingCoef: number
+  /** ユーザー要望: ゲーム終了時点の自チーム最終占領率(0〜1)に比例して全チームへ加算する終端
+   * ボーナス。`territoryRankBonus`(順位)と独立に、1位を逃しても実際に塗れた分だけ報酬が出る
+   * ようにする(`rewards.ts`の終端ボーナス処理参照)。 */
+  territoryRateTerminalCoef: number
+  /** territoryRankBonus[i] = 占領率降順(`getTerritoryRanking`)で順位iのチームに与える終端
+   * ボーナス。降順、長さ=teamCount。旧`rankBonus`は脱落順(`getRanking`)ベースだったが、
+   * 占領率は生存チーム同士の奪い合いでゲーム終了まで変動し続けるため、`isGameOver`成立時に
+   * 全チーム一斉に付与する形に変更した(`rewards.ts`参照)。 */
+  territoryRankBonus: number[]
   /** ユーザー要望: 次のリング(予告円)へ先回りするインセンティブ。ポテンシャルベースシェイピング
    * `Φ(s) = -(次のリング境界からのはみ出し距離、内側なら0)`の差分`Φ(s') - Φ(s)`にこの係数を
    * 掛けて毎tick加算する — 被弾する前から近づくこと自体に報酬が出るため、`slipDamageCoef`のような

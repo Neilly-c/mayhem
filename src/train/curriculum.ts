@@ -20,7 +20,7 @@ export function defaultCurriculum(): CurriculumStage[] {
  * 個別に足す必要がないように)。
  */
 export function curriculumSimConfig(iteration: number, stages: CurriculumStage[] = defaultCurriculum()): Partial<SimConfig> {
-  let mapRadius = stages[0]?.mapRadius ?? 25
+  let mapRadius = stages[0]?.mapRadius ?? 15
   for (const stage of stages) {
     if (iteration >= stage.afterIteration) mapRadius = stage.mapRadius
     else break

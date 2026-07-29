@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createConfig } from '../../sim'
 import type { GameState, NodeState, TeamState, TickEvents, UnitState } from '../../sim'
 import { createRewardConfig } from '../rewardConfig'
-import { applyTickRewards, applyWinnerBonus } from '../rewards'
+import { applyTerritoryTerminalBonus, applyTickRewards } from '../rewards'
 
 function makeUnit(id: number, teamId: number, hp = 100, alive = true): UnitState {
   return {
@@ -19,8 +19,8 @@ function makeUnit(id: number, teamId: number, hp = 100, alive = true): UnitState
   }
 }
 
-function makeNode(q: number, r = 0): NodeState {
-  return { q, r, elevation: 0.5, passable: true, owner: null, captureProgress: null }
+function makeNode(q: number, r = 0, owner: number | null = null): NodeState {
+  return { q, r, elevation: 0.5, passable: true, owner, captureProgress: null }
 }
 
 function makeState(teams: TeamState[], units: UnitState[], nodes: NodeState[] = [makeNode(0)]): GameState {
@@ -59,7 +59,14 @@ describe('applyTickRewards', () => {
     const state = makeState(teams2(), [makeUnit(0, 0), makeUnit(1, 1)])
     const config = createRewardConfig(2, { damageDealtCoef: 0.1, damageTakenCoef: -0.2, survivalReward: 0 })
     const rewards: Record<number, number> = {}
-    applyTickRewards(rewards, { ...emptyEvents(), combat: [{ attackerId: 0, targetId: 1, damage: 10 }] }, state, config, new Map())
+    applyTickRewards(
+      rewards,
+      { ...emptyEvents(), combat: [{ attackerId: 0, targetId: 1, damage: 10 }] },
+      state,
+      config,
+      new Map(),
+      new Map(),
+    )
     expect(rewards[0]).toBeCloseTo(1.0, 10)
     expect(rewards[1]).toBeCloseTo(-2.0, 10)
   })
@@ -78,6 +85,7 @@ describe('applyTickRewards', () => {
       state,
       config,
       new Map(),
+      new Map(),
     )
     // target: damageTaken (default coef) + deathPenalty; attacker: damageDealt + killBonus
     expect(rewards[1]).toBeCloseTo(100 * config.damageTakenCoef - 5, 10)
@@ -89,7 +97,14 @@ describe('applyTickRewards', () => {
     const state = makeState(teams2(), units)
     const config = createRewardConfig(2, { killBonus: 3, survivalReward: 0 })
     const rewards: Record<number, number> = {}
-    applyTickRewards(rewards, { ...emptyEvents(), deaths: [{ unitId: 3, teamId: 1, killerTeamId: 0 }] }, state, config, new Map())
+    applyTickRewards(
+      rewards,
+      { ...emptyEvents(), deaths: [{ unitId: 3, teamId: 1, killerTeamId: 0 }] },
+      state,
+      config,
+      new Map(),
+      new Map(),
+    )
     expect(rewards[0]).toBeCloseTo(3, 10) // alive killer-team unit
     expect(rewards[1]).toBeCloseTo(3, 10) // alive killer-team unit
     expect(rewards[2]).toBeUndefined() // dead killer-team unit, not credited
@@ -99,27 +114,30 @@ describe('applyTickRewards', () => {
     const state = makeState(teams2(), [makeUnit(0, 0), makeUnit(1, 1, 0, false)])
     const config = createRewardConfig(2, { deathPenalty: -5, killBonus: 3, survivalReward: 0 })
     const rewards: Record<number, number> = {}
-    applyTickRewards(rewards, { ...emptyEvents(), deaths: [{ unitId: 1, teamId: 1, killerTeamId: null }] }, state, config, new Map())
+    applyTickRewards(
+      rewards,
+      { ...emptyEvents(), deaths: [{ unitId: 1, teamId: 1, killerTeamId: null }] },
+      state,
+      config,
+      new Map(),
+      new Map(),
+    )
     expect(rewards[1]).toBeCloseTo(-5, 10)
     expect(rewards[0]).toBeUndefined()
-  })
-
-  it('credits every alive teammate of the capturing team on a territory capture, but not the enemy or dead teammates', () => {
-    const units = [makeUnit(0, 0), makeUnit(1, 0, 100, false), makeUnit(2, 1)]
-    const state = makeState(teams2(), units)
-    const config = createRewardConfig(2, { territoryCoef: 0.5, survivalReward: 0 })
-    const rewards: Record<number, number> = {}
-    applyTickRewards(rewards, { ...emptyEvents(), territoryCaptures: [{ node: 0, teamId: 0 }] }, state, config, new Map())
-    expect(rewards[0]).toBeCloseTo(0.5, 10)
-    expect(rewards[1]).toBeUndefined() // dead teammate, not credited
-    expect(rewards[2]).toBeUndefined() // enemy team, not credited
   })
 
   it('applies slipDamageCoef to units that took ring slip damage', () => {
     const state = makeState(teams2(), [makeUnit(0, 0)])
     const config = createRewardConfig(2, { slipDamageCoef: -0.05, survivalReward: 0 })
     const rewards: Record<number, number> = {}
-    applyTickRewards(rewards, { ...emptyEvents(), slipDamage: [{ unitId: 0, damage: 4 }] }, state, config, new Map())
+    applyTickRewards(
+      rewards,
+      { ...emptyEvents(), slipDamage: [{ unitId: 0, damage: 4 }] },
+      state,
+      config,
+      new Map(),
+      new Map(),
+    )
     expect(rewards[0]).toBeCloseTo(-0.2, 10)
   })
 
@@ -127,23 +145,9 @@ describe('applyTickRewards', () => {
     const state = makeState(teams2(), [makeUnit(0, 0), makeUnit(1, 1, 100, false)])
     const config = createRewardConfig(2, { survivalReward: 0.01 })
     const rewards: Record<number, number> = {}
-    applyTickRewards(rewards, emptyEvents(), state, config, new Map())
+    applyTickRewards(rewards, emptyEvents(), state, config, new Map(), new Map())
     expect(rewards[0]).toBeCloseTo(0.01, 10)
     expect(rewards[1]).toBeUndefined() // dead, no survival reward
-  })
-
-  it('awards the rank-appropriate bonus when a team is eliminated this tick', () => {
-    const teams: TeamState[] = [
-      { id: 0, alive: true, eliminatedAtTick: null, killCount: 0 },
-      { id: 1, alive: false, eliminatedAtTick: 100, killCount: 0 }, // just eliminated this tick
-    ]
-    const state = makeState(teams, [makeUnit(0, 0), makeUnit(1, 1, 0, false)])
-    // Explicit non-zero last-place bonus so this test isn't masked by add()'s zero-amount skip.
-    const config = createRewardConfig(2, { survivalReward: 0, rankBonus: [10, 2] })
-    const rewards: Record<number, number> = {}
-    applyTickRewards(rewards, { ...emptyEvents(), eliminatedTeams: [1] }, state, config, new Map())
-    // team 1 is last place (rank index 1) among 2 teams
-    expect(rewards[1]).toBeCloseTo(config.rankBonus[1], 10)
   })
 })
 
@@ -167,7 +171,7 @@ describe('applyTickRewards: next-ring shaping (ユーザー要望)', () => {
     const state = makeShapingState(unit)
     const config = createRewardConfig(2, { survivalReward: 0, nextRingShapingCoef: 1 })
     const rewards: Record<number, number> = {}
-    applyTickRewards(rewards, emptyEvents(), state, config, new Map())
+    applyTickRewards(rewards, emptyEvents(), state, config, new Map(), new Map())
     expect(rewards[0]).toBeUndefined()
   })
 
@@ -179,9 +183,9 @@ describe('applyTickRewards: next-ring shaping (ユーザー要望)', () => {
     const rewards: Record<number, number> = {}
     const memo = new Map<number, number>()
 
-    applyTickRewards(rewards, emptyEvents(), state, config, memo) // first tick: establishes baseline, no reward
+    applyTickRewards(rewards, emptyEvents(), state, config, memo, new Map()) // first tick: establishes baseline, no reward
     unit.pos = { from: 1, to: 1, progress: 0 } // moves to `near`: distanceOutside = 0
-    applyTickRewards(rewards, emptyEvents(), state, config, memo) // second tick: improved by 9
+    applyTickRewards(rewards, emptyEvents(), state, config, memo, new Map()) // second tick: improved by 9
 
     expect(rewards[0]).toBeCloseTo(9, 10)
   })
@@ -194,9 +198,9 @@ describe('applyTickRewards: next-ring shaping (ユーザー要望)', () => {
     const rewards: Record<number, number> = {}
     const memo = new Map<number, number>()
 
-    applyTickRewards(rewards, emptyEvents(), state, config, memo)
+    applyTickRewards(rewards, emptyEvents(), state, config, memo, new Map())
     unit.pos = { from: 0, to: 0, progress: 0 } // moves to `far`: distanceOutside = 9 (worse)
-    applyTickRewards(rewards, emptyEvents(), state, config, memo)
+    applyTickRewards(rewards, emptyEvents(), state, config, memo, new Map())
 
     expect(rewards[0]).toBeCloseTo(-9, 10)
   })
@@ -209,8 +213,8 @@ describe('applyTickRewards: next-ring shaping (ユーザー要望)', () => {
     const rewards: Record<number, number> = {}
     const memo = new Map<number, number>()
 
-    applyTickRewards(rewards, emptyEvents(), state, config, memo)
-    applyTickRewards(rewards, emptyEvents(), state, config, memo)
+    applyTickRewards(rewards, emptyEvents(), state, config, memo, new Map())
+    applyTickRewards(rewards, emptyEvents(), state, config, memo, new Map())
 
     expect(rewards[0]).toBeUndefined()
   })
@@ -223,9 +227,9 @@ describe('applyTickRewards: next-ring shaping (ユーザー要望)', () => {
     const rewards: Record<number, number> = {}
     const memo = new Map<number, number>()
 
-    applyTickRewards(rewards, emptyEvents(), state, config, memo)
+    applyTickRewards(rewards, emptyEvents(), state, config, memo, new Map())
     unit.pos = { from: 1, to: 1, progress: 0 }
-    applyTickRewards(rewards, emptyEvents(), state, config, memo)
+    applyTickRewards(rewards, emptyEvents(), state, config, memo, new Map())
 
     expect(rewards[0]).toBeCloseTo(9 * 0.5, 10)
   })
@@ -240,40 +244,105 @@ describe('applyTickRewards: next-ring shaping (ユーザー要望)', () => {
     state.ring.nextRadius = 1
     const config = createRewardConfig(2, { survivalReward: 0, nextRingShapingCoef: 1 })
     const rewards: Record<number, number> = {}
-    applyTickRewards(rewards, emptyEvents(), state, config, new Map())
+    applyTickRewards(rewards, emptyEvents(), state, config, new Map(), new Map())
     expect(rewards[0]).toBeUndefined()
     expect(rewards[1]).toBeUndefined()
   })
 })
 
-describe('applyWinnerBonus', () => {
-  // ユーザー要望で`isGameOver`の終了条件が「全チーム全滅」に変わったため(sim/rules.ts参照)、
-  // 「生存チームが1つだけ」はもう`isGameOver`が成立する状態ではない(残り1チームもリング
-  // ダメージで全滅するまで自由に占領を続けられる)。よってこのシナリオではボーナスは付与されない。
-  it('does not award a bonus for a sole surviving team, since that no longer counts as game-over', () => {
-    const teams: TeamState[] = [
-      { id: 0, alive: true, eliminatedAtTick: null, killCount: 0 },
-      { id: 1, alive: false, eliminatedAtTick: 100, killCount: 0 },
-    ]
-    const state = makeState(teams, [makeUnit(0, 0), makeUnit(1, 1, 0, false)])
-    const config = createRewardConfig(2)
+describe('applyTickRewards: territory-rate shaping (ユーザー要望: 陣営の目的をマップ占領率にする)', () => {
+  it('gives zero shaping reward on the first tick a team is seen (no prior potential to diff against)', () => {
+    const nodes = [makeNode(0), makeNode(1)]
+    const state = makeState(teams2(), [makeUnit(0, 0)], nodes)
+    const config = createRewardConfig(2, { survivalReward: 0, territoryRateShapingCoef: 1 })
     const rewards: Record<number, number> = {}
-    applyWinnerBonus(rewards, state, config)
-    expect(rewards).toEqual({})
+    applyTickRewards(rewards, emptyEvents(), state, config, new Map(), new Map())
+    expect(rewards[0]).toBeUndefined()
   })
 
+  it("rewards an increase in the team's territory rate across ticks, using a persistent memo", () => {
+    const nodes = [makeNode(0), makeNode(1)] // 2 passable nodes total
+    const state = makeState(teams2(), [makeUnit(0, 0)], nodes)
+    const config = createRewardConfig(2, { survivalReward: 0, territoryRateShapingCoef: 10 })
+    const rewards: Record<number, number> = {}
+    const territoryMemo = new Map<number, number>()
+
+    applyTickRewards(rewards, emptyEvents(), state, config, new Map(), territoryMemo) // baseline: rate 0
+    state.nodes[0].owner = 0 // captures 1 of 2 nodes -> rate 0.5
+    applyTickRewards(rewards, emptyEvents(), state, config, new Map(), territoryMemo)
+
+    expect(rewards[0]).toBeCloseTo(10 * 0.5, 10)
+  })
+
+  it('penalizes losing territory (recapture) as a rate decrease', () => {
+    const nodes = [makeNode(0, 0, 0), makeNode(1)] // node 0 starts self-owned -> rate 0.5
+    const state = makeState(teams2(), [makeUnit(0, 0)], nodes)
+    const config = createRewardConfig(2, { survivalReward: 0, territoryRateShapingCoef: 10 })
+    const rewards: Record<number, number> = {}
+    const territoryMemo = new Map<number, number>()
+
+    applyTickRewards(rewards, emptyEvents(), state, config, new Map(), territoryMemo) // baseline: rate 0.5
+    state.nodes[0].owner = 1 // recaptured by the enemy -> rate 0
+    applyTickRewards(rewards, emptyEvents(), state, config, new Map(), territoryMemo)
+
+    expect(rewards[0]).toBeCloseTo(10 * (0 - 0.5), 10)
+  })
+
+  it('is scaled by territoryRateShapingCoef', () => {
+    const nodes = [makeNode(0), makeNode(1)]
+    const state = makeState(teams2(), [makeUnit(0, 0)], nodes)
+    const config = createRewardConfig(2, { survivalReward: 0, territoryRateShapingCoef: 0.5 })
+    const rewards: Record<number, number> = {}
+    const territoryMemo = new Map<number, number>()
+
+    applyTickRewards(rewards, emptyEvents(), state, config, new Map(), territoryMemo)
+    state.nodes[0].owner = 0
+    applyTickRewards(rewards, emptyEvents(), state, config, new Map(), territoryMemo)
+
+    expect(rewards[0]).toBeCloseTo(0.5 * 0.5, 10)
+  })
+
+  it('credits every alive unit of the team identically, since the potential is team-level', () => {
+    const nodes = [makeNode(0), makeNode(1)]
+    const state = makeState(teams2(), [makeUnit(0, 0), makeUnit(1, 0)], nodes)
+    const config = createRewardConfig(2, { survivalReward: 0, territoryRateShapingCoef: 10 })
+    const rewards: Record<number, number> = {}
+    const territoryMemo = new Map<number, number>()
+
+    applyTickRewards(rewards, emptyEvents(), state, config, new Map(), territoryMemo)
+    state.nodes[0].owner = 0
+    applyTickRewards(rewards, emptyEvents(), state, config, new Map(), territoryMemo)
+
+    expect(rewards[0]).toBeCloseTo(5, 10)
+    expect(rewards[1]).toBeCloseTo(5, 10)
+  })
+
+  it("tracks each team's potential independently by team id", () => {
+    const nodes = [makeNode(0), makeNode(1), makeNode(2), makeNode(3)] // 4 passable nodes
+    const state = makeState(teams2(), [makeUnit(0, 0), makeUnit(1, 1)], nodes)
+    const config = createRewardConfig(2, { survivalReward: 0, territoryRateShapingCoef: 10 })
+    const rewards: Record<number, number> = {}
+    const territoryMemo = new Map<number, number>()
+
+    applyTickRewards(rewards, emptyEvents(), state, config, new Map(), territoryMemo) // both teams at rate 0
+    state.nodes[0].owner = 0 // team 0 -> rate 0.25; team 1 stays at rate 0
+    applyTickRewards(rewards, emptyEvents(), state, config, new Map(), territoryMemo)
+
+    expect(rewards[0]).toBeCloseTo(10 * 0.25, 10)
+    expect(rewards[1]).toBeUndefined() // team 1's rate did not change
+  })
+})
+
+describe('applyTerritoryTerminalBonus (ユーザー要望: 陣営の目的をマップ占領率にする)', () => {
   it('does nothing while the game is not yet over', () => {
     const state = makeState(teams2(), [makeUnit(0, 0), makeUnit(1, 1)])
     const config = createRewardConfig(2)
     const rewards: Record<number, number> = {}
-    applyWinnerBonus(rewards, state, config)
+    applyTerritoryTerminalBonus(rewards, state, config)
     expect(rewards).toEqual({})
   })
 
-  // 全チーム全滅が新しい終了条件になったため、isGameOverが成立する時点では「生存している勝者」が
-  // 存在し得ず、この関数は事実上常に無効化されている(RL報酬の再設計は保留中の既知のギャップ —
-  // 学習をやり直す際に見直す)。
-  it('still does nothing once every team is eliminated, since there is no longer an alive winner to reward', () => {
+  it('awards nothing once every team is fully wiped out, since there is no alive unit left to receive it', () => {
     const teams: TeamState[] = [
       { id: 0, alive: false, eliminatedAtTick: 120, killCount: 0 },
       { id: 1, alive: false, eliminatedAtTick: 100, killCount: 0 },
@@ -281,7 +350,23 @@ describe('applyWinnerBonus', () => {
     const state = makeState(teams, [makeUnit(0, 0, 0, false), makeUnit(1, 1, 0, false)])
     const config = createRewardConfig(2)
     const rewards: Record<number, number> = {}
-    applyWinnerBonus(rewards, state, config)
+    applyTerritoryTerminalBonus(rewards, state, config)
     expect(rewards).toEqual({})
+  })
+
+  it("awards the sole surviving team (game ended via the last-team countdown) its territory-rank + territory-rate bonus", () => {
+    const teams: TeamState[] = [
+      { id: 0, alive: true, eliminatedAtTick: null, killCount: 0 },
+      { id: 1, alive: false, eliminatedAtTick: 50, killCount: 0 },
+    ]
+    const nodes = [makeNode(0, 0, 0), makeNode(1)] // team 0 owns 1 of 2 passable nodes -> rate 0.5
+    const state = makeState(teams, [makeUnit(0, 0), makeUnit(1, 1, 0, false)], nodes)
+    const config = createRewardConfig(2, { territoryRankBonus: [10, 2], territoryRateTerminalCoef: 20 })
+    state.tick = state.config.lastTeamCountdownTicks + 50 // well past the solo-survivor countdown
+    const rewards: Record<number, number> = {}
+    applyTerritoryTerminalBonus(rewards, state, config)
+    // team 0 is the sole survivor (rank 0, territoryRate 0.5): 10 + 20*0.5 = 20
+    expect(rewards[0]).toBeCloseTo(20, 10)
+    expect(rewards[1]).toBeUndefined() // team 1 has no alive units left to receive it
   })
 })

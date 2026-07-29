@@ -2,7 +2,7 @@ import type { GameState, MoveCommand, UnitState } from '../sim'
 import { unitWorldPos, world, worldDistBetween } from '../sim'
 import { computeVisibleEnemies } from '../env'
 import type { UnitDecision } from './types'
-import { findNearestOwnNode, findNearestSafeNode, findNearestUnclaimedNode, otherUnitOccupiedNodes } from './movementHelpers'
+import { findNearestOwnNode, findNearestSafeNode, findNearestUnclaimedNode, teammateOccupiedNodes } from './movementHelpers'
 
 export interface GuardianBotConfig {
   /** Below this HP fraction, break off to retreat to own territory and heal. */
@@ -24,13 +24,14 @@ function isStationaryAt(unit: UnitState, nodeIdx: number): boolean {
 /**
  * 自チーム所有ノードのうち、敵ユニットの攻撃範囲内に入られている(=奪還されかけている)最寄りの
  * ものを探す。BFSではなく全ノード走査+world距離で十分単純(ノード数×ユニット数程度で軽い)。
- * 他ユニットが既にいる(=既に誰かが防衛に向かっている)ノードは候補から除外し、複数の
+ * 味方ユニットが既にいる(=既に誰かが防衛に向かっている)ノードは候補から除外し、複数の
  * guardianが同じ1マスへ収束して片方が動けなくなるのを防ぐ(自分自身が既にそこにいる場合は
- * 除外されない — その場に留まって防衛を続けられる)。
+ * 除外されない — その場に留まって防衛を続けられる)。敵ユニットは除外対象に含めない —
+ * 敵が実際に踏み込んでいるノードこそ最優先で反攻すべき対象であり、避ける理由にはならない。
  */
 function findThreatenedOwnNode(state: GameState, unit: UnitState): number | null {
   const selfWorldPos = unitWorldPos(state, unit)
-  const occupied = otherUnitOccupiedNodes(state, unit)
+  const occupied = teammateOccupiedNodes(state, unit)
   let best: number | null = null
   let bestDist = Infinity
 

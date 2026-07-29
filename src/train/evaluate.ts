@@ -1,5 +1,5 @@
 import type { SimConfig } from '../sim'
-import { Simulation, deriveRng, getRanking, getWinnerTeamId, isGameOver, randInt } from '../sim'
+import { Simulation, deriveRng, getTerritoryRanking, getWinnerTeamId, isGameOver, randInt } from '../sim'
 import type { BotKind, DecisionSource, UnitDecision } from '../agents'
 import { decideExpanderBotCommands, decideGuardianBotCommands, decideRaiderBotCommands } from '../agents'
 import { decisionsToLogEntry, type LoggedDecision } from '../app/replay'
@@ -50,6 +50,10 @@ function deriveEpisodeSeed(baseSeed: number, opponentBotKind: BotKind, episodeIn
  * `recordedLog`を渡すと、ブラウザ側の`createReplayDecisionSource`(`src/app/replay.ts`)でそのまま
  * 再生できる形式の意思決定ログを蓄積する(`replayRecording.ts`が使う)。返す`simConfig`は
  * `createConfig`で解決済みの完全な設定 — 再生側が同じマップを再構築するのに必要。
+ *
+ * ユーザー要望: 陣営の目的がマップ占領率になったため、`rank`は脱落順(`getRanking`)ではなく
+ * 占領率順(`getTerritoryRanking`)で算出する — でないと学習中の勝率レポート(`evaluateAgainstBots`)
+ * が「最後まで生き残ったか」という、もはや目的ではなくなった指標を測り続けてしまう。
  */
 export function playOneEpisode(
   simConfig: Partial<SimConfig>,
@@ -74,7 +78,7 @@ export function playOneEpisode(
     sim.step()
   }
 
-  const ranking = getRanking(sim.state)
+  const ranking = getTerritoryRanking(sim.state)
   return { rank: ranking.indexOf(policyTeamId), winnerTeamId: getWinnerTeamId(sim.state), simConfig: sim.state.config }
 }
 

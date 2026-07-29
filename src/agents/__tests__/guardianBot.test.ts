@@ -106,6 +106,16 @@ describe('guardianBot', () => {
     expect(decisions.get(0)?.command).toEqual({ type: 'moveTo', node: 4 })
   })
 
+  it('ユーザー要望: still targets a threatened own node even when the enemy is standing directly on it (approaching to contest it is the point)', () => {
+    const nodes = [makeNode(0, 0), makeNode(1), makeNode(2), makeNode(3), makeNode(4, 0)]
+    const self = makeUnit(0, 0, 2)
+    const enemy = makeUnit(1, 1, 4) // standing directly on node 4 (self-owned), invading it
+    const state = makeState(nodes, [self, enemy], { attackRange: 1.5 })
+
+    const decisions = decideCommands(state, [0])
+    expect(decisions.get(0)?.command).toEqual({ type: 'moveTo', node: 4 })
+  })
+
   it('ユーザー要望: defends the next-nearest threatened own node when the nearest one is already occupied by a teammate', () => {
     const nodes = [makeNode(0, 0), makeNode(1), makeNode(2), makeNode(3), makeNode(4), makeNode(5), makeNode(6, 0)]
     const self = makeUnit(0, 0, 2) // distance 2 from node 0, distance 4 from node 6

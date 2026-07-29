@@ -67,7 +67,7 @@ describe('expanderBot', () => {
   })
 
   it('attacks the nearest in-range enemy while still heading out to expand', () => {
-    const nodes = [makeNode(0), makeNode(1), makeNode(2)]
+    const nodes = [makeNode(0, 0), makeNode(1), makeNode(2)] // node 0 is self's home base
     const self = makeUnit(0, 0, 0)
     const enemy = makeUnit(1, 1, 2) // 2 hops away, within attackRange but not blocking node 1
     const state = makeState(nodes, [self, enemy])
@@ -77,14 +77,36 @@ describe('expanderBot', () => {
     expect(decisions.get(0)?.command).toEqual({ type: 'moveTo', node: 1 }) // node 1 is neutral and nearest
   })
 
-  it('ユーザー要望: skips a nearer neutral node currently occupied by another unit, heading to the next-nearest free one instead', () => {
-    const nodes = [makeNode(0), makeNode(1), makeNode(2)]
+  it('ユーザー要望: skips a nearer neutral node currently occupied by a teammate, heading to the next-nearest free one instead', () => {
+    const nodes = [makeNode(0, 0), makeNode(1), makeNode(2)] // node 0 is self's home base
     const self = makeUnit(0, 0, 0)
-    const occupant = makeUnit(1, 1, 1) // sitting right on node 1, the otherwise-nearest neutral node
-    const state = makeState(nodes, [self, occupant])
+    const teammate = makeUnit(1, 0, 1) // sitting right on node 1, the otherwise-nearest neutral node
+    const state = makeState(nodes, [self, teammate])
 
     const decisions = decideCommands(state, [0])
     expect(decisions.get(0)?.command).toEqual({ type: 'moveTo', node: 2 })
+  })
+
+  it('ユーザー要望: does NOT skip a neutral/enemy node just because an enemy unit is standing there — approaching to contest it is the point', () => {
+    const nodes = [makeNode(0, 0), makeNode(1), makeNode(2)] // node 0 is self's home base
+    const self = makeUnit(0, 0, 0)
+    const enemy = makeUnit(1, 1, 1) // sitting on node 1, the nearest neutral node
+    const state = makeState(nodes, [self, enemy])
+
+    const decisions = decideCommands(state, [0])
+    expect(decisions.get(0)?.command).toEqual({ type: 'moveTo', node: 1 })
+  })
+
+  it('ユーザー要望: keeps holding an in-progress enemy-node capture instead of wandering off to the next candidate', () => {
+    // Standing on node 1 (enemy-owned, capture already in progress) with node 2 (neutral) one hop
+    // away -- without the "stay if not yet self-owned" check this would abandon the capture and
+    // head to node 2 instead every time the bot re-decides.
+    const nodes = [makeNode(0, 0), makeNode(1, 1), makeNode(2)]
+    const self = makeUnit(0, 0, 1)
+    const state = makeState(nodes, [self])
+
+    const decisions = decideCommands(state, [0])
+    expect(decisions.get(0)?.command).toEqual({ type: 'moveTo', node: 1 })
   })
 
   it('moves toward the nearest neutral node over a closer already self-owned one', () => {
