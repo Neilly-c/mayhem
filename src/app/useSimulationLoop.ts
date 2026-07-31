@@ -22,7 +22,7 @@ import { playGameOver, playHit, playKill, playRingShrink, playRingWarn } from '.
 export interface SimulationFormConfig {
   mapRadius: number
   teamCount: number
-  unitsPerTeam: number
+  perlinFrequency: number
 }
 
 /** ユーザー要望: チーム別ロジックの選択肢に、学習中のRLチェックポイント(最良/最新)を追加する。
@@ -104,10 +104,10 @@ function stepOnceWithDecisions(
 const MAX_TICKS_PER_FRAME = 2000
 
 const DEFAULT_SEED = 1
-const DEFAULT_FORM_CONFIG: SimulationFormConfig = { mapRadius: 15, teamCount: 6, unitsPerTeam: 3 }
+const DEFAULT_FORM_CONFIG: SimulationFormConfig = { mapRadius: 15, teamCount: 6, perlinFrequency: 0.22 }
 
 function buildSimConfig(form: SimulationFormConfig): Partial<SimConfig> {
-  return { mapRadius: form.mapRadius, teamCount: form.teamCount, unitsPerTeam: form.unitsPerTeam }
+  return { mapRadius: form.mapRadius, teamCount: form.teamCount, perlinFrequency: form.perlinFrequency }
 }
 
 function createDriver(seed: number, form: SimulationFormConfig): Driver {
@@ -194,7 +194,6 @@ export function useSimulationLoop() {
     setGameOver(false)
     setSelectedUnitId(null)
     setCanReplay(false)
-    setBotAssignment(new Map())
     setEpisode((e) => e + 1)
   }, [])
 
@@ -339,6 +338,11 @@ export function useSimulationLoop() {
    * (seed・完全な`SimConfig`・`LoggedDecision[]`)を読み込んで即座に再生する。読み込んだ瞬間に
    * 再生を始める(`startReplay`と違い`setPlaying(true)`) — 「クリックで再生できるように」という
    * 要望に沿うため、読み込みと再生開始を1操作にまとめている。
+   *
+   * ユーザー要望: マップ/seedパネルの表示値を、読み込んだリプレイが実際に使っていた値に
+   * 揃える(そのリプレイの`config`をそのまま`configForm`/`seed`へ反映)。でないと、直前の
+   * ライブ実行時の値が表示されたままになり、パネルの値と実際に再生されているマップが
+   * 食い違って見えてしまう。
    */
   const loadReplay = useCallback((replaySeed: number, config: Partial<SimConfig>, log: LoggedDecision[]) => {
     driverRef.current = {
@@ -348,6 +352,12 @@ export function useSimulationLoop() {
     }
     prevRingPhaseRef.current = null
     prevGameOverRef.current = false
+    setSeed(replaySeed)
+    setConfigForm((prev) => ({
+      mapRadius: config.mapRadius ?? prev.mapRadius,
+      teamCount: config.teamCount ?? prev.teamCount,
+      perlinFrequency: config.perlinFrequency ?? prev.perlinFrequency,
+    }))
     setMode('replay')
     setTick(0)
     setGameOver(false)

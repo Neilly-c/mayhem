@@ -132,19 +132,21 @@ export function playKill(): void {
   tone(160, 40, 0.3, 'sawtooth', 0.22)
 }
 
-/** リング予告(warnフェーズ開始): ベルを1回鳴らすようなキーンとした音。 */
+/** リング予告(warnフェーズ開始): ベルを1回鳴らすようなキーンとした音。ユーザー要望でより高音に。 */
 export function playRingWarn(): void {
-  bellTone(1100, 1.1, 0.22)
+  bellTone(1500, 1.1, 0.22)
 }
 
-/** リング収縮開始(shrinkフェーズ開始): 警報(サイレン)のように上下する音を数回繰り返す。 */
+/** リング収縮開始(shrinkフェーズ開始): ユーザー要望でコミカルなパトカーのサイレン風に
+ * (「ウーウー」と高低を素早く往復)。従来のsawtoothは音が鋭すぎたため、丸みのあるtriangle波に
+ * 変更しつつ、往復のテンポを少し速めて玩具っぽい賑やかさを出す。 */
 export function playRingShrink(): void {
-  const sweeps = 3
-  const sweepDuration = 0.18
-  for (let i = 0; i < sweeps; i++) {
-    const t = i * sweepDuration * 2
-    tone(420, 840, sweepDuration, 'sawtooth', 0.16, t)
-    tone(840, 420, sweepDuration, 'sawtooth', 0.16, t + sweepDuration)
+  const cycles = 4
+  const cycleDuration = 0.16
+  for (let i = 0; i < cycles; i++) {
+    const t = i * cycleDuration * 2
+    tone(520, 980, cycleDuration, 'triangle', 0.2, t)
+    tone(980, 520, cycleDuration, 'triangle', 0.2, t + cycleDuration)
   }
 }
 

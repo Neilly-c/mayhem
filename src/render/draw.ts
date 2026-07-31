@@ -45,7 +45,7 @@ function obliqueElevation(node: NodeState): number {
 }
 
 function obliqueYOffset(camera: Camera, elevation: number): number {
-  return -elevation * OBLIQUE_HEIGHT_WORLD * camera.scale
+  return -(elevation - 0.5) * OBLIQUE_HEIGHT_WORLD * camera.scale * 1.8
 }
 
 /** ノードの表示位置。obliqueView時のみ標高ぶん画面上に持ち上げる。 */

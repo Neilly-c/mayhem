@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ユーザーへの応答
+
+日本語で出力する。
+
 ## Commands
 
 - `npm run dev` — start the Vite dev server with HMR

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
 import type { SimConfig } from '../sim'
 import type { LoggedDecision } from './replay'
+import { playClick, playHover } from './sound'
 
 interface ManifestEntry {
   iteration: number
@@ -24,11 +26,11 @@ const POLL_INTERVAL_MS = 5000
 
 /**
  * ユーザー要望: 学習(`npm run train`)が`public/replays`(`replayWriter.ts`)へ書き出す
- * 世代ごとのリプレイを、ブラウザで見た目の変化として追えるようにする。
+ * チェックポイントごとのリプレイを、ブラウザで見た目の変化として追えるようにする。
  * - 一覧の各エントリはクリックで即再生。
- * - 「新しい世代を自動再生」がONの間は、manifest.jsonをポーリングして新しいエントリを
+ * - 「新しいチェックポイントを自動再生」がONの間は、manifest.jsonをポーリングして新しいエントリを
  *   検出したら自動的に読み込んで再生する(学習を回しながらタブを開いておくだけで
- *   世代ごとの変化を眺められる)。
+ *   チェックポイントごとの変化を眺められる)。
  */
 export function TrainingReplayPanel({ onLoadReplay }: Props) {
   const [entries, setEntries] = useState<ManifestEntry[]>([])
@@ -48,7 +50,7 @@ export function TrainingReplayPanel({ onLoadReplay }: Props) {
         onLoadReplay(replay.seed, replay.simConfig, replay.log)
         setError(null)
       } catch {
-        setError(`リプレイの読み込みに失敗しました: ${entry.filename}`)
+        setError(`読み込みに失敗しました: ${entry.filename}`)
       } finally {
         setLoadingFilename(null)
       }
@@ -73,7 +75,7 @@ export function TrainingReplayPanel({ onLoadReplay }: Props) {
           if (latest.iteration > lastSeenIterationRef.current) void loadAndPlay(latest)
         }
       } catch {
-        if (!cancelled) setError('学習リプレイ一覧を取得できません(npm run dev / npm run train を確認)')
+        if (!cancelled) setError('リプレイ取得失敗：')
       }
     }
 
@@ -88,10 +90,22 @@ export function TrainingReplayPanel({ onLoadReplay }: Props) {
   return (
     <section className="control-panel">
       <h2>学習リプレイ</h2>
-      <label>
-        新しい世代を自動再生
-        <input type="checkbox" checked={autoPlay} onChange={(e) => setAutoPlay(e.target.checked)} />
-      </label>
+      <div className="button-row">
+        <button
+          type="button"
+          className={`icon-button toggle${autoPlay ? ' toggle-on' : ''}`}
+          onClick={() => {
+            playClick()
+            setAutoPlay((v) => !v)
+          }}
+          onMouseEnter={playHover}
+          title="新しいチェックポイントを自動再生"
+          aria-label="新しいチェックポイントを自動再生"
+          aria-pressed={autoPlay}
+        >
+          <RefreshCw size={18} />
+        </button>
+      </div>
       {error && <p className="mode-indicator">{error}</p>}
       {entries.length === 0 ? (
         <p className="mode-indicator">まだリプレイがありません(npm run train を実行してください)</p>
@@ -103,7 +117,7 @@ export function TrainingReplayPanel({ onLoadReplay }: Props) {
             .map((entry) => (
               <li key={entry.filename}>
                 <button type="button" disabled={loadingFilename === entry.filename} onClick={() => void loadAndPlay(entry)}>
-                  世代 {entry.iteration} ({entry.opponentBotKind === 'selfPlay' ? '自己対戦' : `vs ${entry.opponentBotKind}`})
+                  ckpts {entry.iteration} ({entry.opponentBotKind === 'selfPlay' ? '自己対戦' : `vs ${entry.opponentBotKind}`})
                 </button>
               </li>
             ))}

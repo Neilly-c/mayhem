@@ -3,9 +3,14 @@ import { getTerritoryRanking, isGameOver, teamTerritoryRate } from '../sim'
 import { computeVisibleEnemies } from '../env'
 import { teamColor } from '../render'
 
-/** 棒グラフの表示上限。占領率50%以上は(それ以上他陣営が居ないので)勝利確定となるため、
- * それより先を見せる必要がない — スケールをここで頭打ちにして小さな差を見やすくする。 */
-const TERRITORY_BAR_MAX_PERCENT = 50
+/** 棒グラフの表示上限。ユーザー要望で50%→25%に変更(小さな差をより見やすくする)。 */
+const TERRITORY_BAR_MAX_PERCENT = 25
+/** ユーザー要望: 5%刻みの補助線。0%と上限(container端)は境界線と重複するので除く。 */
+const TERRITORY_BAR_GRIDLINE_STEP = 5
+const TERRITORY_BAR_GRIDLINES = Array.from(
+  { length: Math.floor(TERRITORY_BAR_MAX_PERCENT / TERRITORY_BAR_GRIDLINE_STEP) - 1 },
+  (_, i) => (i + 1) * TERRITORY_BAR_GRIDLINE_STEP,
+)
 
 interface Props {
   state: GameState
@@ -29,6 +34,9 @@ export function DebugPanel({ state, selectedUnitId }: Props) {
     const rank = territoryRanking ? territoryRanking.indexOf(team.id) + 1 : null
     return { team, teamUnits, aliveUnits, totalHp, territoryPercent, rank }
   })
+
+  // ユーザー要望: 占領率の順位入れ替わりが激しく、ソートするとアニメーションが追い付かないため、
+  // チーム表は並び替えずチームID順の静的な表にする(占領率降順ソートは廃止)。
 
   return (
     <div className="debug-panel">
@@ -61,17 +69,34 @@ export function DebugPanel({ state, selectedUnitId }: Props) {
         </tbody>
       </table>
 
-      {/* ユーザー要望: 状態表の下に占領率の縦棒グラフを追加する(HPではなく占領率、最大50%)。 */}
+      {/* ユーザー要望: 状態表の下に占領率の縦棒グラフを追加する(HPではなく占領率、最大25%)。
+       * 5%ごとに補助線、25%を超えた系列は光らせる。 */}
       <div className="territory-bar-chart">
+        {TERRITORY_BAR_GRIDLINES.map((value) => (
+          <div
+            key={value}
+            className="territory-bar-gridline"
+            style={{ bottom: `${(value / TERRITORY_BAR_MAX_PERCENT) * 100}%` }}
+          />
+        ))}
         {teamSummaries.map(({ team, territoryPercent }) => {
           const barHeightPct = Math.min(100, (territoryPercent / TERRITORY_BAR_MAX_PERCENT) * 100)
+          const isOverMax = territoryPercent > TERRITORY_BAR_MAX_PERCENT
+          const color = teamColor(team.id)
           return (
             <div
               key={team.id}
               className="territory-bar"
               title={`チーム${team.id}: ${territoryPercent.toFixed(2)}%`}
             >
-              <div className="territory-bar-fill" style={{ height: `${barHeightPct}%`, background: teamColor(team.id) }} />
+              <div
+                className={`territory-bar-fill${isOverMax ? ' territory-bar-fill--glow' : ''}`}
+                style={{
+                  height: `${barHeightPct}%`,
+                  background: color,
+                  boxShadow: isOverMax ? `0 0 6px 2px ${color}, 0 0 16px 4px ${color}` : undefined,
+                }}
+              />
             </div>
           )
         })}

@@ -32,11 +32,9 @@ function App() {
           <ControlPanel
             playing={loop.playing}
             ticksPerSecond={loop.ticksPerSecond}
-            mode={loop.mode}
             seed={loop.seed}
             configForm={loop.configForm}
             canReplay={loop.canReplay}
-            gameOver={loop.gameOver}
             botAssignment={loop.botAssignment}
             rlSlotStatus={loop.rlSlotStatus}
             onPlay={loop.play}

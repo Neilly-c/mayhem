@@ -246,28 +246,58 @@ main {
 }
 
 .territory-bar-chart {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 6px;
   height: 90px;
   margin: 12px 0 4px;
+  background: var(--code-bg);
+  border-radius: 3px 3px 0 0;
+}
+
+/* ユーザー要望: 5%ごとの補助線。チャート全体に対して1本ずつ配置し、各棒の未達部分から
+ * 透けて見えるよう棒自体は背景を持たない(下記.territory-bar)。 */
+.territory-bar-gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--border);
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .territory-bar {
+  position: relative;
   flex: 1;
   height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: 3px 3px 0 0;
-  overflow: hidden;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  overflow: visible;
 }
 
 .territory-bar-fill {
   width: 100%;
   transition: height 0.2s;
+}
+
+/* ユーザー要望: 上限(25%)を超えた系列は光らせる。box-shadowは動的な色をJS側でインラインに
+ * 設定し、ここではその発光を脈打たせるアニメーションだけを付与する。 */
+.territory-bar-fill--glow {
+  animation: territory-glow-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes territory-glow-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.5);
+  }
 }
 
 /* チーム別ロジックなど、開閉できるセクションの見出しボタン(h2の見た目を保ったままクリック可能にする)。 */

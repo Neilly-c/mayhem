@@ -47,7 +47,7 @@ export const WALL_COLOR = '#222222'
  * 消去(安全圏の穴あけ)は不透明色で行うため、ここのアルファ値が安全圏に漏れ出すことはない
  * (以前は消去円がこのアルファ値のまま描かれ、安全圏にも薄く色が残るバグがあった)。
  */
-export const RING_DANGER_FILL = 'rgba(200,90,30,0.45)'
+export const RING_DANGER_FILL = 'rgba(200,90,30,0.15)'
 export const RING_BOUNDARY_COLOR = '#e0d000'
 export const RING_NEXT_BOUNDARY_COLOR = 'rgba(224,208,0,0.5)'
 export const ATTACK_LINE_COLOR = 'rgba(255,255,255,0.7)'

@@ -16,7 +16,7 @@ import {
 import { defaultBotKindForTeam } from '../agents'
 import { teamColor } from '../render'
 import { isMuted, playClick, playHover, setMuted } from './sound'
-import type { PlaybackMode, RlSlot, RlSlotStatus, SimulationFormConfig, TeamLogicKind } from './useSimulationLoop'
+import type { RlSlot, RlSlotStatus, SimulationFormConfig, TeamLogicKind } from './useSimulationLoop'
 
 const BOT_LABEL: Record<TeamLogicKind, string> = {
   expander: '拡張型',
@@ -36,11 +36,9 @@ const RL_STATUS_LABEL: Record<RlSlotStatus, string> = {
 interface Props {
   playing: boolean
   ticksPerSecond: number
-  mode: PlaybackMode
   seed: number
   configForm: SimulationFormConfig
   canReplay: boolean
-  gameOver: boolean
   botAssignment: Map<number, TeamLogicKind>
   rlSlotStatus: Record<RlSlot, RlSlotStatus>
   onPlay: () => void
@@ -63,11 +61,9 @@ interface Props {
 export function ControlPanel({
   playing,
   ticksPerSecond,
-  mode,
   seed,
   configForm,
   canReplay,
-  gameOver,
   botAssignment,
   rlSlotStatus,
   onPlay,
@@ -89,9 +85,26 @@ export function ControlPanel({
   const [seedInput, setSeedInput] = useState(seed)
   const [mapRadiusInput, setMapRadiusInput] = useState(configForm.mapRadius)
   const [teamCountInput, setTeamCountInput] = useState(configForm.teamCount)
-  const [unitsPerTeamInput, setUnitsPerTeamInput] = useState(configForm.unitsPerTeam)
+  const [perlinFrequencyInput, setPerlinFrequencyInput] = useState(configForm.perlinFrequency)
   const [teamLogicExpanded, setTeamLogicExpanded] = useState(false)
   const [muted, setMutedState] = useState(isMuted())
+
+  // ユーザー要望: 学習リプレイ読み込み時など、外部からseed/configFormが変わった場合はパネルの
+  // 表示値もそれに追従させる(そのリプレイが実際に使っていた値を表示する)。レンダー中に直接
+  // setStateする(Reactが推奨する「propの変化に合わせてstateを調整する」パターン) — useEffect
+  // 経由だと1フレーム遅れて反映される上、setState-in-effectのlintルールにも抵触するため。
+  const [prevSeedProp, setPrevSeedProp] = useState(seed)
+  if (seed !== prevSeedProp) {
+    setPrevSeedProp(seed)
+    setSeedInput(seed)
+  }
+  const [prevConfigFormProp, setPrevConfigFormProp] = useState(configForm)
+  if (configForm !== prevConfigFormProp) {
+    setPrevConfigFormProp(configForm)
+    setMapRadiusInput(configForm.mapRadius)
+    setTeamCountInput(configForm.teamCount)
+    setPerlinFrequencyInput(configForm.perlinFrequency)
+  }
 
   /** ユーザー要望: ボタンのhover/clickにSEを付ける。全ボタン共通でこの2つをラップして使う。 */
   const withClick = (fn: () => void) => () => {
@@ -163,14 +176,12 @@ export function ControlPanel({
             onChange={(e) => onSetTicksPerSecond(Math.max(1, Number(e.target.value) || 1))}
           />
         </label>
-        <p className="mode-indicator">
-          モード: {mode === 'live' ? 'ライブ' : 'リプレイ'}
-          {gameOver ? '(決着済み)' : ''}
-        </p>
       </section>
 
       <section>
         <h2>マップ / seed</h2>
+        {/* ユーザー要望: どの値を変更しても即座にマップへ反映する(専用の「新しいマップで開始」
+         * ボタンは不要になったため撤廃)。 */}
         <label>
           seed
           <input
@@ -178,9 +189,9 @@ export function ControlPanel({
             value={seedInput}
             disabled={playing}
             onChange={(e) => {
-              const nextSeed = Number(e.target.value)
-              setSeedInput(nextSeed)
-              onReset(nextSeed, configForm)
+              const next = Number(e.target.value)
+              setSeedInput(next)
+              onReset(next, { mapRadius: mapRadiusInput, teamCount: teamCountInput, perlinFrequency: perlinFrequencyInput })
             }}
           />
         </label>
@@ -192,7 +203,11 @@ export function ControlPanel({
             max={25}
             value={mapRadiusInput}
             disabled={playing}
-            onChange={(e) => setMapRadiusInput(Number(e.target.value))}
+            onChange={(e) => {
+              const next = Number(e.target.value)
+              setMapRadiusInput(next)
+              onReset(seedInput, { mapRadius: next, teamCount: teamCountInput, perlinFrequency: perlinFrequencyInput })
+            }}
           />
         </label>
         <label>
@@ -203,34 +218,29 @@ export function ControlPanel({
             max={8}
             value={teamCountInput}
             disabled={playing}
-            onChange={(e) => setTeamCountInput(Number(e.target.value))}
+            onChange={(e) => {
+              const next = Number(e.target.value)
+              setTeamCountInput(next)
+              onReset(seedInput, { mapRadius: mapRadiusInput, teamCount: next, perlinFrequency: perlinFrequencyInput })
+            }}
           />
         </label>
         <label>
-          unitsPerTeam
+          perlinFrequency
           <input
             type="number"
-            min={1}
-            max={6}
-            value={unitsPerTeamInput}
+            min={0}
+            max={0.5}
+            step={0.01}
+            value={perlinFrequencyInput}
             disabled={playing}
-            onChange={(e) => setUnitsPerTeamInput(Number(e.target.value))}
+            onChange={(e) => {
+              const next = Number(e.target.value)
+              setPerlinFrequencyInput(next)
+              onReset(seedInput, { mapRadius: mapRadiusInput, teamCount: teamCountInput, perlinFrequency: next })
+            }}
           />
         </label>
-        <button
-          type="button"
-          disabled={playing}
-          onClick={withClick(() =>
-            onReset(seedInput, {
-              mapRadius: mapRadiusInput,
-              teamCount: teamCountInput,
-              unitsPerTeam: unitsPerTeamInput,
-            }),
-          )}
-          onMouseEnter={playHover}
-        >
-          新しいマップで開始
-        </button>
       </section>
 
       <section>
