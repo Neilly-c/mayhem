@@ -2,6 +2,7 @@ import type { GameState, MoveCommand } from '../sim'
 import { unitWorldPos, worldDistBetween } from '../sim'
 import { computeVisibleEnemies } from '../env'
 import type { UnitDecision } from './types'
+import { decideAbilityCommand } from './abilityHelpers'
 import { findNearestSafeNode, findNearestUnclaimedNode, pickBestDirection } from './movementHelpers'
 
 /**
@@ -43,7 +44,7 @@ export function decideCommands(state: GameState, unitIds: number[]): Map<number,
       command = target !== null ? { type: 'moveTo', node: target } : { type: 'idle' }
     }
 
-    decisions.set(unitId, { command, attackTarget })
+    decisions.set(unitId, { command, attackTarget, abilityCommand: decideAbilityCommand(state, unit, visibleEnemies) })
   }
 
   return decisions

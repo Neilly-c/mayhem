@@ -28,9 +28,11 @@ export interface RolloutStep {
   obs: number[]
   moveMask: boolean[]
   attackMask: boolean[]
+  abilityMask: boolean[]
   moveAction: number
   attackAction: number
-  /** 収集時点のポリシーによる、move+attack合成(和)のlog確率。PPO比の分母に使う。 */
+  abilityAction: number
+  /** 収集時点のポリシーによる、move+attack+ability合成(和)のlog確率。PPO比の分母に使う。 */
   oldLogProb: number
   /** 収集時点の価値関数推定 V(obs)。 */
   value: number

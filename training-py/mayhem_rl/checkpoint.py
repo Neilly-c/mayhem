@@ -30,15 +30,33 @@ def ensure_tfjs_template(network_config: dict[str, Any], template_dir: str | Pat
     a training run (`networkConfig` is fixed for the whole run; only `mapRadius` varies via
     curriculum, which doesn't touch the network's shape). See `export_tfjs`'s docstring for why
     Python never hand-authors `model.json`.
+
+    A `network_config.json` sidecar records the exact `obsDim`/`maxVisibleEnemies`/`hiddenSizes`
+    used to build the cached template, and is checked against the requested `network_config` on
+    every call — if it's missing or doesn't match (e.g. `--checkpoint-dir` reused across two runs
+    where `env/observation.ts`'s vector length changed, changing `obsDim`), the template is
+    regenerated rather than silently reused. Without this check, `export_tfjs` fails deep inside a
+    training run with a `shape mismatch for trunk_0/kernel` `ValueError` — the PyTorch checkpoint
+    (`weights.pt`, saved just before the TF.js export) is unaffected either way, so `--resume-from`
+    that checkpoint recovers cleanly regardless of whether this staleness check catches it.
     """
     template_dir = Path(template_dir)
-    if (template_dir / "model.json").exists():
-        return
+    hidden_sizes = list(network_config.get("hiddenSizes") or [256, 256])
+    normalized_config = {
+        "obsDim": network_config["obsDim"],
+        "maxVisibleEnemies": network_config["maxVisibleEnemies"],
+        "hiddenSizes": hidden_sizes,
+    }
+
+    config_marker = template_dir / "network_config.json"
+    if (template_dir / "model.json").exists() and config_marker.exists():
+        existing_config = json.loads(config_marker.read_text(encoding="utf-8"))
+        if existing_config == normalized_config:
+            return
 
     node = shutil.which("node")
     if node is None:
         raise RuntimeError("`node` executable not found on PATH")
-    hidden_sizes = network_config.get("hiddenSizes") or [256, 256]
     subprocess.run(
         [
             node,
@@ -57,6 +75,7 @@ def ensure_tfjs_template(network_config: dict[str, Any], template_dir: str | Pat
         check=True,
         cwd=_REPO_ROOT,
     )
+    config_marker.write_text(json.dumps(normalized_config), encoding="utf-8")
 
 
 def save_checkpoint(network: ActorCriticNetwork, directory: str | Path, meta: dict[str, Any]) -> None:
@@ -126,6 +145,8 @@ def _pytorch_param_for_tfjs_weight(network: ActorCriticNetwork, tfjs_name: str) 
         module = network.move_logits
     elif layer_name == "attack_logits":
         module = network.attack_logits
+    elif layer_name == "ability_logits":
+        module = network.ability_logits
     elif layer_name == "value":
         module = network.value
     else:

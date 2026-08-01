@@ -1,11 +1,11 @@
 import type { DecisionSource, UnitDecision } from '../agents'
-import type { MoveCommand } from '../sim'
+import type { AbilityCommand, MoveCommand } from '../sim'
 
 export type { DecisionSource } from '../agents'
 
 export interface LoggedDecision {
   tick: number
-  commands: { unitId: number; command: MoveCommand; attackTarget: number | null }[]
+  commands: { unitId: number; command: MoveCommand; attackTarget: number | null; abilityCommand: AbilityCommand }[]
 }
 
 export function decisionsToLogEntry(tick: number, decisions: Map<number, UnitDecision>): LoggedDecision {
@@ -15,6 +15,7 @@ export function decisionsToLogEntry(tick: number, decisions: Map<number, UnitDec
       unitId,
       command: d.command,
       attackTarget: d.attackTarget,
+      abilityCommand: d.abilityCommand,
     })),
   }
 }
@@ -32,8 +33,10 @@ export function createReplayDecisionSource(log: LoggedDecision[]): DecisionSourc
     const decisions = new Map<number, UnitDecision>()
     const entry = byTick.get(state.tick)
     if (!entry) return decisions
-    for (const { unitId, command, attackTarget } of entry.commands) {
-      decisions.set(unitId, { command, attackTarget })
+    for (const { unitId, command, attackTarget, abilityCommand } of entry.commands) {
+      // ユーザー要望のアビリティ追加前に記録された古いリプレイ/学習ログには`abilityCommand`が
+      // 無いため、欠けていれば安全に'none'へフォールバックする。
+      decisions.set(unitId, { command, attackTarget, abilityCommand: abilityCommand ?? { type: 'none' } })
     }
     return decisions
   }

@@ -19,13 +19,17 @@ function makeUnit(id: number, teamId: number, atNode: number, hp = 100): UnitSta
     destination: null,
     path: null,
     lastDamagedByTeamId: null,
+    ability: 'paintball',
+    abilityCooldownRemaining: 0,
+    abilityActiveTicksRemaining: 0,
+    abilityCommand: { type: 'none' },
   }
 }
 
 /** 4 nodes in a line (q=0..3, r=0), unit 0 (team 0) at node 0, unit 1 (team 1) at node 1. */
 function makeCombatState(overrides?: Partial<GameState['config']>): GameState {
   const config = createConfig({
-    visionRange: 6.0,
+    visionCoreRadius: 6,
     attackRange: 2.0,
     baseDamage: 1.0,
     // Neutralized so tests below can isolate high-ground/territory/etc. without also having to
@@ -54,6 +58,10 @@ function makeCombatState(overrides?: Partial<GameState['config']>): GameState {
       nextCenter: 0,
       nextRadius: 100,
     },
+    projectiles: [],
+    nextProjectileId: 0,
+    laserBeams: [],
+    nextLaserBeamId: 0,
   }
 }
 
@@ -86,8 +94,8 @@ describe('combat', () => {
   })
 
   it('does not fire when out of vision range even if in attack range', () => {
-    const state = makeCombatState({ visionRange: 0.5, attackRange: 5.0 })
-    state.units[0].attackTarget = 1 // distance 1.0 > visionRange 0.5
+    const state = makeCombatState({ visionCoreRadius: 0, visionSpikeRange: 0, attackRange: 5.0 })
+    state.units[0].attackTarget = 1 // hex distance 1 > visionCoreRadius/visionSpikeRange 0
     expect(computeCombatIntents(state, state.units[0])).toEqual([])
   })
 
@@ -183,8 +191,15 @@ describe('combat', () => {
   })
 
   describe('chain damage', () => {
+    /** ユーザー要望: 連鎖ダメージは常時有効ではなく、`chainDamage`アビリティ発動中の攻撃者にのみ働く。 */
+    function activateChainDamage(unit: UnitState): void {
+      unit.ability = 'chainDamage'
+      unit.abilityActiveTicksRemaining = 30
+    }
+
     it('applies chainDamageCoef of the main hit to enemies clustered near the target, sparing the attacker\'s own team and anyone outside the radius', () => {
       const state = makeCombatState({ chainDamageRadius: 1.5, chainDamageCoef: 0.5 })
+      activateChainDamage(state.units[0])
       state.units.push(
         makeUnit(2, 1, 2), // team1 @ node2: world dist 1.0 from target (node1) -> within radius
         makeUnit(3, 1, 3), // team1 @ node3: world dist 2.0 from target -> outside radius
@@ -195,12 +210,13 @@ describe('combat', () => {
       const intents = computeCombatIntents(state, state.units[0])
       expect(intents).toEqual([
         { attackerId: 0, targetId: 1, damage: 1.0 },
-        { attackerId: 0, targetId: 2, damage: 0.5 },
+        { attackerId: 0, targetId: 2, damage: 0.5, chain: true },
       ])
     })
 
     it('never chain-damages the attacker itself, even when within radius of the target', () => {
       const state = makeCombatState({ chainDamageRadius: 5, chainDamageCoef: 0.5 })
+      activateChainDamage(state.units[0])
       state.units[0].attackTarget = 1 // attacker is world dist 1.0 from the target, well within radius 5
       const intents = computeCombatIntents(state, state.units[0])
       expect(intents.some((i) => i.targetId === 0)).toBe(false)
@@ -208,6 +224,7 @@ describe('combat', () => {
 
     it('does not double-count the main target as its own chain-damage victim', () => {
       const state = makeCombatState({ chainDamageRadius: 5, chainDamageCoef: 0.5 })
+      activateChainDamage(state.units[0])
       state.units[0].attackTarget = 1
       const intents = computeCombatIntents(state, state.units[0])
       expect(intents.filter((i) => i.targetId === 1)).toHaveLength(1)
@@ -215,6 +232,7 @@ describe('combat', () => {
 
     it('skips dead units when looking for chain-damage victims', () => {
       const state = makeCombatState({ chainDamageRadius: 1.5, chainDamageCoef: 0.5 })
+      activateChainDamage(state.units[0])
       state.units.push({ ...makeUnit(2, 1, 2), alive: false })
       state.units[0].attackTarget = 1
 
@@ -222,8 +240,9 @@ describe('combat', () => {
       expect(intents).toEqual([{ attackerId: 0, targetId: 1, damage: 1.0 }])
     })
 
-    it('disables chain damage entirely when chainDamageRadius is 0', () => {
+    it('disables chain damage entirely when chainDamageRadius is 0, even with the ability active', () => {
       const state = makeCombatState({ chainDamageRadius: 0, chainDamageCoef: 0.5 })
+      activateChainDamage(state.units[0])
       state.units.push(makeUnit(2, 1, 2)) // would otherwise be within any reasonable radius
       state.units[0].attackTarget = 1
 
@@ -231,8 +250,18 @@ describe('combat', () => {
       expect(intents).toEqual([{ attackerId: 0, targetId: 1, damage: 1.0 }])
     })
 
-    it('disables chain damage entirely when chainDamageCoef is 0', () => {
+    it('disables chain damage entirely when chainDamageCoef is 0, even with the ability active', () => {
       const state = makeCombatState({ chainDamageRadius: 5, chainDamageCoef: 0 })
+      activateChainDamage(state.units[0])
+      state.units.push(makeUnit(2, 1, 2))
+      state.units[0].attackTarget = 1
+
+      const intents = computeCombatIntents(state, state.units[0])
+      expect(intents).toEqual([{ attackerId: 0, targetId: 1, damage: 1.0 }])
+    })
+
+    it('does not apply chain damage when the ability is not currently active, even if radius/coef are set', () => {
+      const state = makeCombatState({ chainDamageRadius: 5, chainDamageCoef: 0.5 })
       state.units.push(makeUnit(2, 1, 2))
       state.units[0].attackTarget = 1
 

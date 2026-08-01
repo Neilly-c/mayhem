@@ -1,6 +1,6 @@
 """Shared actor-critic network. Mirrors src/train/network.ts's `ActorCriticModel`: a shared MLP
-trunk feeding three heads (move logits, attack logits, value). All teams/units share ONE policy
-(self-play via weight sharing, see requirements.md §11.1).
+trunk feeding four heads (move logits, attack logits, ability logits, value). All teams/units
+share ONE policy (self-play via weight sharing, see requirements.md §11.1).
 
 The trunk is an `nn.ModuleList` of `nn.Linear` layers rather than named `trunk_0`/`trunk_1`
 attributes (not valid Python identifiers with that separator) — `checkpoint.py`'s `export_tfjs`
@@ -15,6 +15,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 MOVE_ACTIONS = 7
+# ユーザー要望: アビリティ発動ヘッド。0=何もしない、1..6=装備アビリティの種類に応じて方向
+# (directional)または発動(selfBuff、1のみ意味を持つ)。src/env/actions.tsのActionMask.ability。
+ABILITY_ACTIONS = 7
 DEFAULT_HIDDEN_SIZES = (256, 256)
 
 
@@ -34,10 +37,11 @@ class ActorCriticNetwork(nn.Module):
 
         self.move_logits = nn.Linear(in_features, MOVE_ACTIONS)
         self.attack_logits = nn.Linear(in_features, max_visible_enemies + 1)
+        self.ability_logits = nn.Linear(in_features, ABILITY_ACTIONS)
         self.value = nn.Linear(in_features, 1)
 
-    def forward(self, obs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, obs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         x = obs
         for layer in self.trunk:
             x = F.relu(layer(x))
-        return self.move_logits(x), self.attack_logits(x), self.value(x)
+        return self.move_logits(x), self.attack_logits(x), self.ability_logits(x), self.value(x)

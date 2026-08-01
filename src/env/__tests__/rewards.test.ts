@@ -16,6 +16,10 @@ function makeUnit(id: number, teamId: number, hp = 100, alive = true): UnitState
     destination: null,
     path: null,
     lastDamagedByTeamId: null,
+    ability: 'paintball',
+    abilityCooldownRemaining: 0,
+    abilityActiveTicksRemaining: 0,
+    abilityCommand: { type: 'none' },
   }
 }
 
@@ -42,11 +46,24 @@ function makeState(teams: TeamState[], units: UnitState[], nodes: NodeState[] = 
       nextCenter: 0,
       nextRadius: 100,
     },
+    projectiles: [],
+    nextProjectileId: 0,
+    laserBeams: [],
+    nextLaserBeamId: 0,
   }
 }
 
 function emptyEvents(): TickEvents {
-  return { combat: [], deaths: [], eliminatedTeams: [], territoryCaptures: [], regen: [], slipDamage: [] }
+  return {
+    combat: [],
+    deaths: [],
+    eliminatedTeams: [],
+    territoryCaptures: [],
+    regen: [],
+    slipDamage: [],
+    abilityActivations: [],
+    paintballImpacts: [],
+  }
 }
 
 const teams2 = (): TeamState[] => [

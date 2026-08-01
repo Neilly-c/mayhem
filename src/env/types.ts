@@ -11,12 +11,20 @@ export interface ActionMask {
   move: boolean[]
   /** 長さN+1: [攻撃しない, 視認中敵スロット0..N-1]。 */
   attack: boolean[]
+  /** ユーザー要望: アビリティ発動ヘッド。長さ7: [何もしない, 1..6]。装備アビリティが
+   * `paintball`/`laser`(directional)なら1..6はその方向へ発動(有効射程内に地図があり、
+   * ノード上で静止中かつクールダウン明けの場合のみ合法)。`damageShield`/`speedBoost`/
+   * `chainDamage`(selfBuff)なら1のみ「発動」を意味し(クールダウン明けの場合のみ合法)、
+   * 2..6は常に非合法(§actions.tsのbuildActionMask/decodeAction参照)。 */
+  ability: boolean[]
 }
 
-/** §11.3 `MultiDiscrete([7, N+1])`の1エージェント分の行動。 */
+/** §11.3 `MultiDiscrete([7, N+1, 7])`の1エージェント分の行動。`ability`の意味は`ActionMask.ability`
+ * と同じ(装備アビリティの種類に応じて方向/発動のどちらかとして解釈される)。 */
 export interface ActionInput {
   move: number
   attack: number
+  ability: number
 }
 
 export interface StepInfo {

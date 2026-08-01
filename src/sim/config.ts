@@ -21,13 +21,29 @@ export function defaultConfig(): SimConfig {
     highGroundCoefMax: 2, // 高低差ダメージ補正倍率の上限。
     backAttackDamageCoef: 0.5, // 対象の背面から攻撃した際のダメージ倍率(正面は1倍のまま)。
     stationaryAttackDamageCoef: 1.5, // 攻撃側がノード上で静止している際、全方向に適用されるダメージ倍率。
-    chainDamageRadius: 0, // 主攻撃対象の周囲、連鎖ダメージが波及するワールド距離半径(0で連鎖ダメージ無効)。
-    chainDamageCoef: 0.3, // 連鎖ダメージが主攻撃の(補正後)ダメージに対して占める割合。
+    chainDamageRadius: 1.2, // 連鎖ダメージが波及するワールド距離半径(隣接ヘックスを覆う程度)。chainDamageアビリティ発動中のみ有効。
+    chainDamageCoef: 0.3, // 連鎖ダメージが主攻撃の(補正後)ダメージに対して占める割合。chainDamageアビリティのi値と兼用。
     territoryRegenRate: 0.5, // 自チーム所有ノード上で静止している際の1tickあたりHP回復量。
-    visionRange: 6.0, // 敵ユニットを視認できるワールド距離。
+    visionCoreRadius: 3, // 視野: 全方向に見える正六角形コアの半径(ホップ数)。
+    visionSpikeRange: 9, // 視野: 6方向直線上のみ、コアを超えて見通せる距離(ホップ数)。
     attackRange: 2.0, // 攻撃可能なワールド距離。
     maxVisibleEnemies: 6, // 観測ベクトルに含める視認中敵ユニットの上限数(近い順、超過分は切り捨て)。
     patchHops: 5, // 観測に含める自己中心の局所地形パッチの半径(ホップ数)。
+    paintballSpeedMult: 2, // ペイントボール: 弾速倍率(baseSpeed基準)。
+    paintballMaxRange: 7, // ペイントボール: 着弾先に選べる最大距離(ヘックス数)。
+    paintballDamage: 20, // ペイントボール: 着弾時、周囲7マス以内の敵へのダメージ。
+    paintballCooldown: 180, // ペイントボール: 発動クールダウン(tick)。
+    laserRange: 7, // レーザー: 直線の長さ(ヘックス数)。
+    laserDamage: 20, // レーザー: 直線上の敵へのダメージ。
+    laserCooldown: 180, // レーザー: 発動クールダウン(tick)。
+    damageShieldCoef: 0.3, // ダメージシールド: 発動中のリング以外の被ダメージ倍率。
+    damageShieldDuration: 60, // ダメージシールド: 効果時間(tick)。
+    damageShieldCooldown: 400, // ダメージシールド: 発動クールダウン(tick)。
+    speedBoostMult: 1.6, // スピードブースト: 発動中の移動速度倍率。
+    speedBoostDuration: 30, // スピードブースト: 効果時間(tick)。
+    speedBoostCooldown: 120, // スピードブースト: 発動クールダウン(tick)。
+    chainAbilityDuration: 30, // 連鎖ダメージ有効化: 効果時間(tick)。
+    chainAbilityCooldown: 180, // 連鎖ダメージ有効化: 発動クールダウン(tick)。
     warnTicks: 360, // 各リングステージで、次のリング予告(警告)状態が続くtick数。
     shrinkTicks: 180, // 各リングステージで、実際にリングが収縮するのにかかるtick数。
     ringRadiusSchedule: [20, 12, 8, 5, 3, 0], // 各ステージの安全地帯半径(ワールド単位)。要素数-1がステージ数。

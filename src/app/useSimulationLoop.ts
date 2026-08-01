@@ -17,7 +17,29 @@ import {
   pickBestCheckpoint,
   pickLatestCheckpoint,
 } from './policyModel'
-import { playGameOver, playHit, playKill, playRingShrink, playRingWarn } from './sound'
+import {
+  playChainDamage,
+  playChainHit,
+  playDamageShield,
+  playGameOver,
+  playHit,
+  playKill,
+  playLaser,
+  playPaintball,
+  playPaintballSplash,
+  playRingShrink,
+  playRingWarn,
+  playSpeedBoost,
+} from './sound'
+import type { AbilityKind } from '../sim'
+
+const ABILITY_SOUND: Record<AbilityKind, () => void> = {
+  paintball: playPaintball,
+  laser: playLaser,
+  damageShield: playDamageShield,
+  speedBoost: playSpeedBoost,
+  chainDamage: playChainDamage,
+}
 
 export interface SimulationFormConfig {
   mapRadius: number
@@ -91,9 +113,10 @@ function stepOnceWithDecisions(
   if (sim.state.tick % sim.state.config.decisionInterval === 0) {
     const aliveIds = sim.state.units.filter((u) => u.alive).map((u) => u.id)
     const decisions = decisionSource(sim.state, aliveIds)
-    for (const [unitId, { command, attackTarget }] of decisions) {
+    for (const [unitId, { command, attackTarget, abilityCommand }] of decisions) {
       sim.setCommand(unitId, command)
       sim.setAttackTarget(unitId, attackTarget)
+      sim.setAbilityCommand(unitId, abilityCommand)
     }
     onDecision?.(decisionsToLogEntry(sim.state.tick, decisions))
   }
@@ -161,8 +184,18 @@ export function useSimulationLoop() {
   const handleTickEvents = useCallback((events: TickEvents) => {
     const driver = driverRef.current
     if (!driver) return
-    if (events.combat.length > 0) playHit()
+    // ユーザー要望: チェインダメージが1体以上の敵に成功したtickは、通常のplayHitではなく専用の
+    // playChainHitを鳴らす(両方鳴らすと重なって煩いため、そのtickはchainHitで代表させる)。
+    if (events.combat.some((c) => c.chain)) playChainHit()
+    else if (events.combat.length > 0) playHit()
     if (events.deaths.length > 0) playKill()
+    // ユーザー要望: アビリティ発動ごとにSEを鳴らす。同一tickに同種のアビリティが複数発動しても
+    // (例: 同じアビリティ持ちのユニットが複数いるチーム)音が重なって煩くならないよう種類ごとに1回だけ。
+    const activatedKinds = new Set(events.abilityActivations.map((a) => a.kind))
+    for (const kind of activatedKinds) ABILITY_SOUND[kind]()
+    // ユーザー要望: ペイントボール着弾時に発射音とは別のスプラッシュ音を鳴らす(発射→着弾は
+    // 別tickで起こるため、`abilityActivations`の発射音とは独立にここで判定する)。
+    if (events.paintballImpacts.length > 0) playPaintballSplash()
 
     const phase = driver.sim.state.ring.phase
     if (phase !== prevRingPhaseRef.current) {

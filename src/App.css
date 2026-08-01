@@ -215,6 +215,23 @@ main {
   border-bottom: 1px solid var(--border);
 }
 
+/* ユーザー要望: HP合計(最大300.0)・占領率(最大100.00%)は桁数の上限が決まっているため、
+ * 右寄せにしたうえで最大桁数ぶんの幅を常に確保し、値の桁数が変わっても表の幅が動かないようにする。 */
+.team-status-table th.col-hp,
+.team-status-table td.col-hp,
+.team-status-table th.col-territory,
+.team-status-table td.col-territory {
+  text-align: right;
+}
+
+.team-status-table td.col-hp {
+  min-width: 5ch;
+}
+
+.team-status-table td.col-territory {
+  min-width: 7ch;
+}
+
 .team-status-table tr.eliminated td {
   color: var(--text);
   opacity: 0.55;
@@ -298,6 +315,30 @@ main {
   50% {
     filter: brightness(1.5);
   }
+}
+
+/* ユーザー要望: ユニット形状とアビリティの対応を示す判例。チームパネル(表+棒グラフ)の下、
+ * 「選択中ユニット」の見出しの上に置く。 */
+.ability-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 12px 0 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.ability-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-h);
+}
+
+.ability-legend-icon {
+  flex-shrink: 0;
+  fill: var(--text-h);
 }
 
 /* チーム別ロジックなど、開閉できるセクションの見出しボタン(h2の見た目を保ったままクリック可能にする)。 */

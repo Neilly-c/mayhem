@@ -60,8 +60,10 @@ class _RawRecord:
     obs: list[float]
     move_mask: list[bool]
     attack_mask: list[bool]
+    ability_mask: list[bool]
     move_action: int
     attack_action: int
+    ability_action: int
     old_log_prob: float
     value: float
     reward: float
@@ -79,7 +81,7 @@ def _compute_values(network: ActorCriticNetwork, device: torch.device, obs_list:
         return []
     with torch.no_grad():
         obs_t = torch.tensor(obs_list, dtype=torch.float32, device=device)
-        _, _, value = network(obs_t)
+        _, _, _, value = network(obs_t)
     return value.squeeze(-1).cpu().tolist()
 
 
@@ -103,6 +105,7 @@ def collect_rollout(
         obs_rows: list[list[float]] = []
         move_mask_rows: list[list[bool]] = []
         attack_mask_rows: list[list[bool]] = []
+        ability_mask_rows: list[list[bool]] = []
 
         for env_index in range(pool.num_envs):
             for unit_id, agent in state.agents_by_env[env_index].items():
@@ -110,6 +113,7 @@ def collect_rollout(
                 obs_rows.append(agent["observation"])
                 move_mask_rows.append(agent["actionMask"]["move"])
                 attack_mask_rows.append(agent["actionMask"]["attack"])
+                ability_mask_rows.append(agent["actionMask"]["ability"])
 
         if not active:
             break  # defensive; shouldn't happen given per-step auto-reset, mirrors rolloutBuffer.ts
@@ -121,30 +125,43 @@ def collect_rollout(
         attack_mask_t = torch.tensor(
             [[1.0 if b else 0.0 for b in row] for row in attack_mask_rows], dtype=torch.float32, device=device
         )
+        ability_mask_t = torch.tensor(
+            [[1.0 if b else 0.0 for b in row] for row in ability_mask_rows], dtype=torch.float32, device=device
+        )
 
         seed = action_rng.randrange(2**31)
         gen_move = torch.Generator().manual_seed(seed)
         gen_attack = torch.Generator().manual_seed(seed + 1)
+        gen_ability = torch.Generator().manual_seed(seed + 2)
 
         with torch.no_grad():
-            move_logits, attack_logits, value_t = network(obs_t)
+            move_logits, attack_logits, ability_logits, value_t = network(obs_t)
             # Action sampling always happens on CPU regardless of `device`: it's a handful of
             # floats per row (not the network forward pass itself), and `torch.multinomial`'s
             # `generator` argument must live on the same device as the tensor it samples from —
             # sampling on CPU sidesteps needing a CUDA generator at all.
             move_sample = sample_masked_categorical(move_logits.cpu(), move_mask_t.cpu(), generator=gen_move)
             attack_sample = sample_masked_categorical(attack_logits.cpu(), attack_mask_t.cpu(), generator=gen_attack)
-            joint_log_prob = move_sample.log_probs + attack_sample.log_probs
+            ability_sample = sample_masked_categorical(
+                ability_logits.cpu(), ability_mask_t.cpu(), generator=gen_ability
+            )
+            joint_log_prob = move_sample.log_probs + attack_sample.log_probs + ability_sample.log_probs
 
         move_actions = move_sample.actions.tolist()
         attack_actions = attack_sample.actions.tolist()
+        ability_actions = ability_sample.actions.tolist()
         old_log_probs = joint_log_prob.tolist()
         values = value_t.squeeze(-1).cpu().tolist()
 
         actions_by_env: dict[int, list[dict[str, Any]]] = {}
         for i, (env_index, unit_id) in enumerate(active):
             actions_by_env.setdefault(env_index, []).append(
-                {"unitId": unit_id, "move": move_actions[i], "attack": attack_actions[i]}
+                {
+                    "unitId": unit_id,
+                    "move": move_actions[i],
+                    "attack": attack_actions[i],
+                    "ability": ability_actions[i],
+                }
             )
 
         step_result = pool.step(actions_by_env)
@@ -160,8 +177,10 @@ def collect_rollout(
                     obs=obs_rows[i],
                     move_mask=move_mask_rows[i],
                     attack_mask=attack_mask_rows[i],
+                    ability_mask=ability_mask_rows[i],
                     move_action=move_actions[i],
                     attack_action=attack_actions[i],
+                    ability_action=ability_actions[i],
                     old_log_prob=old_log_probs[i],
                     value=values[i],
                     reward=unit_result["reward"],
@@ -229,8 +248,10 @@ def collect_rollout(
                     obs=r.obs,
                     move_mask=r.move_mask,
                     attack_mask=r.attack_mask,
+                    ability_mask=r.ability_mask,
                     move_action=r.move_action,
                     attack_action=r.attack_action,
+                    ability_action=r.ability_action,
                     old_log_prob=r.old_log_prob,
                     value=r.value,
                     advantage=result.advantages[i],

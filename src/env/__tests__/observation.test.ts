@@ -12,7 +12,7 @@ function makeConfig(overrides?: Partial<SimConfig>): SimConfig {
     unitsPerTeam: 3,
     maxVisibleEnemies: 3,
     patchHops: 2,
-    visionRange: 100,
+    visionCoreRadius: 100,
     attackRange: 2,
     ...overrides,
   })
@@ -30,6 +30,10 @@ function makeUnit(id: number, teamId: number, atNode: number, hp = 100): UnitSta
     destination: null,
     path: null,
     lastDamagedByTeamId: null,
+    ability: 'paintball',
+    abilityCooldownRemaining: 0,
+    abilityActiveTicksRemaining: 0,
+    abilityCommand: { type: 'none' },
   }
 }
 
@@ -47,13 +51,19 @@ function makeState(seed: number, config: SimConfig, units: UnitState[]): GameSta
     ],
     units,
     ring: initRingState(seed, config, nodes),
+    projectiles: [],
+    nextProjectileId: 0,
+    laserBeams: [],
+    nextLaserBeamId: 0,
   }
 }
 
 const expectedVectorLength = (config: SimConfig): number => {
-  const selfLen = 2 + 1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 1 + 6 + 3
+  // self block: [relToCenter x2, ringRadius, ticksUntilShrink, inRing, relToNextCenter x2,
+  // nextRingRadius, elevation, hp, onNode, progress, dir x6, owner x3, ability x5, cooldown, active]
+  const selfLen = 2 + 1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 1 + 6 + 3 + 5 + 1 + 1
   const allyLen = 4 * (config.unitsPerTeam - 1)
-  const enemyLen = 5 * config.maxVisibleEnemies
+  const enemyLen = 10 * config.maxVisibleEnemies // 5 original + 5 ability one-hot per slot
   const k = config.patchHops
   const patchLen = 5 * (1 + 3 * k * (k + 1))
   const summaryLen = config.teamCount + 3
@@ -96,8 +106,8 @@ describe('observation', () => {
     const nodeIndex = buildNodeIndex(state)
 
     const obs = buildObservation(state, self, [], nodeIndex)
-    // self block is 21 long, then 4 floats per ally slot, sorted by ascending unit id (1 then 2)
-    const allyBlock = obs.vector.slice(21, 21 + 8)
+    // self block is 28 long, then 4 floats per ally slot, sorted by ascending unit id (1 then 2)
+    const allyBlock = obs.vector.slice(28, 28 + 8)
     expect(allyBlock[2]).toBeCloseTo(40 / config.unitHP, 10) // deadAlly hp
     expect(allyBlock[3]).toBe(0) // deadAlly alive flag
     expect(allyBlock[6]).toBeCloseTo(77 / config.unitHP, 10) // aliveAlly hp
@@ -122,7 +132,7 @@ describe('observation', () => {
     expect(obs.vector.every((v) => Number.isFinite(v))).toBe(true)
     // Every possible cell within radius 1 must have been generated, so at least SOME patch cells
     // (radius 2-3 ring) must be off-map padding: [elevation=0, wall=1, self=0, enemy=0, neutral=1].
-    const patchStart = 21 + 4 * (config.unitsPerTeam - 1) + 5 * config.maxVisibleEnemies
+    const patchStart = 28 + 4 * (config.unitsPerTeam - 1) + 10 * config.maxVisibleEnemies
     const patchLen = 5 * (1 + 3 * config.patchHops * (config.patchHops + 1))
     const patch = obs.vector.slice(patchStart, patchStart + patchLen)
     const cells: number[][] = []
@@ -149,5 +159,41 @@ describe('observation', () => {
     expect(midEdgeObs.vector[10]).toBe(0)
     expect(midEdgeObs.vector[11]).toBeCloseTo(0.4, 10)
     expect(midEdgeObs.vector.slice(12, 18).filter((v) => v === 1)).toHaveLength(1)
+  })
+
+  it('ユーザー要望: 自身の装備アビリティ(one-hot・クールダウン正規化・バフ残り正規化)を観測に含める', () => {
+    const config = makeConfig()
+    const self = { ...makeUnit(0, 0, 0), ability: 'speedBoost' as const, abilityCooldownRemaining: 30 }
+    const state = makeState(6, config, [self, makeUnit(1, 0, 0), makeUnit(2, 0, 0), makeUnit(3, 1, 0)])
+    const nodeIndex = buildNodeIndex(state)
+
+    const obs = buildObservation(state, self, [], nodeIndex)
+    // self block indices 21..25 = ability one-hot [paintball,laser,damageShield,speedBoost,chainDamage]
+    expect(obs.vector.slice(21, 26)).toEqual([0, 0, 0, 1, 0])
+    // index 26 = cooldown remaining / speedBoostCooldown
+    expect(obs.vector[26]).toBeCloseTo(30 / config.speedBoostCooldown, 10)
+    // index 27 = active ticks remaining / speedBoostDuration (0, never activated)
+    expect(obs.vector[27]).toBe(0)
+  })
+
+  it('ユーザー要望: 視認中の敵ユニットの装備アビリティ種別(one-hot)を各スロットの観測に含める', () => {
+    const config = makeConfig({ maxVisibleEnemies: 2 })
+    const self = makeUnit(0, 0, 0)
+    const enemy = { ...makeUnit(3, 1, 0), ability: 'chainDamage' as const }
+    const state = makeState(7, config, [self, makeUnit(1, 0, 0), makeUnit(2, 0, 0), enemy])
+    const nodeIndex = buildNodeIndex(state)
+    const visibleEnemies = computeVisibleEnemies(state, self)
+    expect(visibleEnemies).toHaveLength(1) // sanity: the enemy must actually be visible
+
+    const obs = buildObservation(state, self, visibleEnemies, nodeIndex)
+    // enemy block starts at 28 (self) + 4*(unitsPerTeam-1) allies; each enemy slot is 10 wide,
+    // with the 5-wide ability one-hot in the last 5 of each slot.
+    const enemyBlockStart = 28 + 4 * (config.unitsPerTeam - 1)
+    const firstSlotAbilityOneHot = obs.vector.slice(enemyBlockStart + 5, enemyBlockStart + 10)
+    expect(firstSlotAbilityOneHot).toEqual([0, 0, 0, 0, 1]) // chainDamage is last in ABILITY_KIND_ORDER
+
+    // second (padding) slot must be all zero, including its ability one-hot.
+    const secondSlot = obs.vector.slice(enemyBlockStart + 10, enemyBlockStart + 20)
+    expect(secondSlot).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
   })
 })

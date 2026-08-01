@@ -1,24 +1,32 @@
-import type { GameState, NodeState, UnitState, Vec2 } from '../sim'
+import type { AbilityKind, GameState, NodeState, UnitState, Vec2 } from '../sim'
 import {
+  LASER_BEAM_DISPLAY_TICKS,
   axialKey,
   lastTeamCountdownRemaining,
   nodesInRadius,
   unitElevation,
   unitFacingVector,
   unitWorldPos,
+  visionStarOffsets,
   world,
 } from '../sim'
 import type { Camera } from './camera'
 import { worldToScreen } from './camera'
+import { ABILITY_SHAPES } from './abilityVisuals'
 import {
   ATTACK_LINE_COLOR,
   ATTACK_RANGE_COLOR,
+  CHAIN_DAMAGE_ACTIVE_COLOR,
+  DAMAGE_SHIELD_ACTIVE_COLOR,
   FACING_INDICATOR_FILL,
   FACING_INDICATOR_STROKE,
+  LASER_BEAM_COLOR,
   PATCH_HIGHLIGHT_COLOR,
+  PROJECTILE_STROKE_COLOR,
   RING_BOUNDARY_COLOR,
   RING_DANGER_FILL,
   RING_NEXT_BOUNDARY_COLOR,
+  SPEED_BOOST_ACTIVE_COLOR,
   VISION_RANGE_COLOR,
   WALL_COLOR,
   elevationColor,
@@ -89,6 +97,122 @@ function hexPath(ctx: CanvasRenderingContext2D, center: Vec2, circumradius: numb
   ctx.closePath()
 }
 
+function polygonPath(
+  ctx: CanvasRenderingContext2D,
+  center: Vec2,
+  circumradius: number,
+  sides: number,
+  rotation: number,
+): void {
+  ctx.beginPath()
+  for (let k = 0; k < sides; k++) {
+    const angle = rotation + (k * Math.PI * 2) / sides
+    const x = center.x + Math.cos(angle) * circumradius
+    const y = center.y + Math.sin(angle) * circumradius
+    if (k === 0) ctx.moveTo(x, y)
+    else ctx.lineTo(x, y)
+  }
+  ctx.closePath()
+}
+
+function starPath(
+  ctx: CanvasRenderingContext2D,
+  center: Vec2,
+  outerRadius: number,
+  innerRadius: number,
+  points: number,
+  rotation = -Math.PI / 2,
+): void {
+  ctx.beginPath()
+  for (let k = 0; k < points * 2; k++) {
+    const radius = k % 2 === 0 ? outerRadius : innerRadius
+    const angle = rotation + (k * Math.PI) / points
+    const x = center.x + Math.cos(angle) * radius
+    const y = center.y + Math.sin(angle) * radius
+    if (k === 0) ctx.moveTo(x, y)
+    else ctx.lineTo(x, y)
+  }
+  ctx.closePath()
+}
+
+/** ユーザー要望: ユニットの形状を割り振られたアビリティごとに変える(区別しやすくするため)。
+ * パスを構築するだけで塗り/縁取りは呼び出し側(`drawUnits`)に任せる — 選択中ユニットの白枠は
+ * 同じパスを`fill`直後に`stroke`し直すことで実現している(`beginPath`を挟まないため)。 */
+function unitShapePath(ctx: CanvasRenderingContext2D, ability: AbilityKind, center: Vec2, radius: number): void {
+  switch (ABILITY_SHAPES[ability]) {
+    case 'circle':
+      ctx.beginPath()
+      ctx.arc(center.x, center.y, radius, 0, Math.PI * 2)
+      return
+    case 'triangle':
+      polygonPath(ctx, center, radius * 1.2, 3, -Math.PI / 2)
+      return
+    case 'hexagon':
+      polygonPath(ctx, center, radius * 1.05, 6, -Math.PI / 2)
+      return
+    case 'diamond':
+      polygonPath(ctx, center, radius * 1.2, 4, -Math.PI / 2)
+      return
+    case 'star':
+      starPath(ctx, center, radius * 1.3, radius * 0.55, 5)
+      return
+  }
+}
+
+/**
+ * ユーザー要望: バフ系アビリティ(damageShield/speedBoost/chainDamage)発動中の見た目を、
+ * 種類ごとに完全に分ける(以前は共通の白い点線の輪1種類だけだった)。`tick`を使ってアニメ
+ * させるための追加の状態は持たない(決定的な`state.tick`をそのまま位相に使うだけ)。
+ * - damageShield: 動かない二重の同心円(バリアの膜のような安定した見た目)。
+ * - speedBoost: 高速に流れて見える点線の輪(`lineDashOffset`を`tick`で動かす)。
+ * - chainDamage: ギザギザの稲妻状の輪(`starPath`を浅い凹凸で再利用)、わずかに回転させる。
+ */
+function drawAbilityBuffIndicator(
+  ctx: CanvasRenderingContext2D,
+  ability: AbilityKind,
+  screen: Vec2,
+  radius: number,
+  tick: number,
+): void {
+  ctx.save()
+  switch (ability) {
+    case 'damageShield': {
+      const pulse = 0.7 + 0.3 * Math.sin(tick / 12)
+      ctx.globalAlpha = pulse
+      ctx.strokeStyle = DAMAGE_SHIELD_ACTIVE_COLOR
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.arc(screen.x, screen.y, radius * 1.45, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(screen.x, screen.y, radius * 1.8, 0, Math.PI * 2)
+      ctx.stroke()
+      break
+    }
+    case 'speedBoost': {
+      ctx.strokeStyle = SPEED_BOOST_ACTIVE_COLOR
+      ctx.lineWidth = 2
+      ctx.setLineDash([radius * 0.9, radius * 0.9])
+      ctx.lineDashOffset = -tick * 1.5
+      ctx.beginPath()
+      ctx.arc(screen.x, screen.y, radius * 1.6, 0, Math.PI * 2)
+      ctx.stroke()
+      break
+    }
+    case 'chainDamage': {
+      ctx.strokeStyle = CHAIN_DAMAGE_ACTIVE_COLOR
+      ctx.lineWidth = 1.5
+      const rotation = -Math.PI / 2 + (tick % 360) * 0.05
+      starPath(ctx, screen, radius * 1.85, radius * 1.4, 9, rotation)
+      ctx.stroke()
+      break
+    }
+    default:
+      break
+  }
+  ctx.restore()
+}
+
 /** §12 神視点の1frame描画。simの状態スナップショットを読むだけで、ロジックは持たない。 */
 export function drawFrame(
   ctx: CanvasRenderingContext2D,
@@ -111,6 +235,8 @@ export function drawFrame(
     drawObservationPatch(ctx, state, camera, options.selectedUnitId, oblique)
   }
   drawAttackLines(ctx, state, camera, oblique)
+  drawLaserBeams(ctx, state, camera)
+  drawProjectiles(ctx, state, camera)
   drawUnits(ctx, state, camera, options.selectedUnitId, oblique)
   if (options.selectedUnitId !== null) {
     drawUnitOverlays(ctx, state, camera, options, oblique)
@@ -289,6 +415,80 @@ function drawRingBoundaries(ctx: CanvasRenderingContext2D, state: GameState, cam
   ctx.restore()
 }
 
+/** ユーザー要望: 飛行中のペイントボール弾を、発射元→着弾先ノードを直線補間した位置に描く
+ * (§`abilities.ts`の`traveled`/`distance`)。視認性を上げるため、進行方向に短い曳光(コメット
+ * テール)と発光(shadowBlur)を付ける。elevationによる立体表示は付けない簡略化。 */
+function drawProjectiles(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera): void {
+  const radius = Math.max(3, camera.scale * 0.16)
+  for (const projectile of state.projectiles) {
+    const from = worldToScreen(camera, world(state.nodes[projectile.originNode]))
+    const to = worldToScreen(camera, world(state.nodes[projectile.targetNode]))
+    const t = Math.max(0, Math.min(1, projectile.traveled / projectile.distance))
+    const x = from.x + (to.x - from.x) * t
+    const y = from.y + (to.y - from.y) * t
+    const color = teamColor(projectile.teamId)
+
+    const tailT = Math.max(0, t - 0.15)
+    const tailX = from.x + (to.x - from.x) * tailT
+    const tailY = from.y + (to.y - from.y) * tailT
+    ctx.save()
+    ctx.globalAlpha = 0.55
+    ctx.strokeStyle = color
+    ctx.lineWidth = Math.max(1.5, radius * 0.6)
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(tailX, tailY)
+    ctx.lineTo(x, y)
+    ctx.stroke()
+    ctx.restore()
+
+    ctx.save()
+    ctx.shadowColor = color
+    ctx.shadowBlur = radius * 1.5
+    ctx.beginPath()
+    ctx.arc(x, y, radius, 0, Math.PI * 2)
+    ctx.fillStyle = color
+    ctx.fill()
+    ctx.lineWidth = 1.5
+    ctx.strokeStyle = PROJECTILE_STROKE_COLOR
+    ctx.stroke()
+    ctx.restore()
+  }
+}
+
+/** ユーザー要望: レーザーは即時着弾でゲーム状態には残らないため、`state.laserBeams`(表示専用、
+ * §types.ts)を発射元→到達先ノード間の光線として数tickだけ描く。`ticksRemaining`に比例して
+ * フェードアウトさせる。 */
+function drawLaserBeams(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera): void {
+  for (const beam of state.laserBeams) {
+    const from = worldToScreen(camera, world(state.nodes[beam.originNode]))
+    const to = worldToScreen(camera, world(state.nodes[beam.endNode]))
+    const alpha = Math.max(0, Math.min(1, beam.ticksRemaining / LASER_BEAM_DISPLAY_TICKS))
+    const color = teamColor(beam.teamId)
+
+    ctx.save()
+    ctx.globalAlpha = alpha
+    ctx.shadowColor = color
+    ctx.shadowBlur = 10
+    ctx.lineCap = 'round'
+
+    ctx.strokeStyle = color
+    ctx.lineWidth = 5
+    ctx.beginPath()
+    ctx.moveTo(from.x, from.y)
+    ctx.lineTo(to.x, to.y)
+    ctx.stroke()
+
+    ctx.strokeStyle = LASER_BEAM_COLOR
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(from.x, from.y)
+    ctx.lineTo(to.x, to.y)
+    ctx.stroke()
+    ctx.restore()
+  }
+}
+
 function drawAttackLines(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera, oblique: boolean): void {
   ctx.save()
   ctx.strokeStyle = ATTACK_LINE_COLOR
@@ -368,8 +568,7 @@ function drawUnits(
     if (!unit.alive) continue
     const screen = unitScreen(camera, state, unit, oblique)
 
-    ctx.beginPath()
-    ctx.arc(screen.x, screen.y, radius, 0, Math.PI * 2)
+    unitShapePath(ctx, unit.ability, screen, radius)
     ctx.fillStyle = teamColor(unit.teamId)
     ctx.fill()
 
@@ -377,6 +576,12 @@ function drawUnits(
       ctx.lineWidth = 2
       ctx.strokeStyle = '#ffffff'
       ctx.stroke()
+    }
+
+    // ユーザー要望: バフ系アビリティ(damageShield/speedBoost/chainDamage)発動中は種類ごとに
+    // 完全に異なる見た目で分かるようにする(§drawAbilityBuffIndicator)。
+    if (unit.abilityActiveTicksRemaining > 0) {
+      drawAbilityBuffIndicator(ctx, unit.ability, screen, radius, state.tick)
     }
 
     const facing = unitDisplayFacing(state, unit)
@@ -394,6 +599,34 @@ function drawUnits(
   }
 }
 
+/** ユーザー要望: 視野が円ではなく「コア+6方向の棘」の星形になったため、円ストロークではなく
+ * `drawObservationPatch`と同じ「該当ヘックスを塗る」方式で表現する(§`hexgrid.ts`の
+ * `visionStarOffsets`)。 */
+function drawVisionOverlay(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  camera: Camera,
+  unit: UnitState,
+  oblique: boolean,
+): void {
+  const nodeIndex = new Map<string, number>()
+  state.nodes.forEach((n, i) => nodeIndex.set(axialKey(n), i))
+
+  const selfNode = state.nodes[unit.pos.to]
+  const circumradius = Math.max(1, camera.scale * HEX_CIRCUMRADIUS_FRACTION)
+
+  ctx.save()
+  ctx.fillStyle = VISION_RANGE_COLOR
+  for (const offset of visionStarOffsets(state.config.visionCoreRadius, state.config.visionSpikeRange)) {
+    const idx = nodeIndex.get(axialKey({ q: selfNode.q + offset.q, r: selfNode.r + offset.r }))
+    if (idx === undefined) continue
+    const screen = nodeScreen(camera, state.nodes[idx], oblique)
+    hexPath(ctx, screen, circumradius)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
 function drawUnitOverlays(
   ctx: CanvasRenderingContext2D,
   state: GameState,
@@ -405,21 +638,17 @@ function drawUnitOverlays(
   if (!unit || !unit.alive) return
   const screen = unitScreen(camera, state, unit, oblique)
 
-  ctx.save()
-  ctx.setLineDash([4, 4])
-  if (options.showVision) {
-    ctx.strokeStyle = VISION_RANGE_COLOR
-    ctx.beginPath()
-    ctx.arc(screen.x, screen.y, state.config.visionRange * camera.scale, 0, Math.PI * 2)
-    ctx.stroke()
-  }
+  if (options.showVision) drawVisionOverlay(ctx, state, camera, unit, oblique)
+
   if (options.showAttackRange) {
+    ctx.save()
+    ctx.setLineDash([4, 4])
     ctx.strokeStyle = ATTACK_RANGE_COLOR
     ctx.beginPath()
     ctx.arc(screen.x, screen.y, state.config.attackRange * camera.scale, 0, Math.PI * 2)
     ctx.stroke()
+    ctx.restore()
   }
-  ctx.restore()
 }
 
 /** §11.2の観測パッチと同じ形状(半径patchHopsホップの六角パッチ)を選択ユニット中心にハイライトする。 */

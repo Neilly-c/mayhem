@@ -30,6 +30,10 @@ function makeRingGameState(config: ReturnType<typeof smallRingConfig>, seed = 1)
     teams: [{ id: 0, alive: true, eliminatedAtTick: null, killCount: 0 }],
     units: [],
     ring: initRingState(seed, config, nodes),
+    projectiles: [],
+    nextProjectileId: 0,
+    laserBeams: [],
+    nextLaserBeamId: 0,
   }
 }
 
@@ -45,6 +49,10 @@ function makeUnitAt(id: number, nodeIdx: number): UnitState {
     destination: null,
     path: null,
     lastDamagedByTeamId: null,
+    ability: 'paintball',
+    abilityCooldownRemaining: 0,
+    abilityActiveTicksRemaining: 0,
+    abilityCommand: { type: 'none' },
   }
 }
 

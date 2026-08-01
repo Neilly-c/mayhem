@@ -4,6 +4,9 @@ import * as path from 'node:path'
 import type { NetworkConfig } from './types'
 
 export const MOVE_ACTIONS = 7
+/** ユーザー要望: アビリティ発動ヘッド。0=何もしない、1..6=装備アビリティの種類に応じて方向
+ * (directional)または発動(selfBuff、1のみ意味を持つ)。§env/actions.tsのActionMask.ability。 */
+export const ABILITY_ACTIONS = 7
 
 const DEFAULT_HIDDEN_SIZES = [256, 256]
 
@@ -77,12 +80,14 @@ export interface ActorCriticOutputs {
   moveLogits: tf.Tensor2D
   /** [B, maxVisibleEnemies+1] */
   attackLogits: tf.Tensor2D
+  /** [B, 7] */
+  abilityLogits: tf.Tensor2D
   /** [B, 1] */
   value: tf.Tensor2D
 }
 
 /**
- * 共有トランク(MLP)+ 3ヘッド(move/attack logits, value)の1枚岩の`tf.LayersModel`。
+ * 共有トランク(MLP)+ 4ヘッド(move/attack/ability logits, value)の1枚岩の`tf.LayersModel`。
  * 全チーム・全ユニットが同じ重みを共有する(§11.1の重み共有self-play方針)。
  *
  * 学習ループ(ppo.ts)は`tf.variableGrads(lossFn)`をvarList省略で呼ぶ前提 — 省略時は
@@ -115,9 +120,12 @@ export class ActorCriticModel {
     const attackLogits = tf.layers
       .dense({ units: config.maxVisibleEnemies + 1, name: 'attack_logits' })
       .apply(trunk) as tf.SymbolicTensor
+    const abilityLogits = tf.layers
+      .dense({ units: ABILITY_ACTIONS, name: 'ability_logits' })
+      .apply(trunk) as tf.SymbolicTensor
     const value = tf.layers.dense({ units: 1, name: 'value' }).apply(trunk) as tf.SymbolicTensor
 
-    const model = tf.model({ inputs: input, outputs: [moveLogits, attackLogits, value] })
+    const model = tf.model({ inputs: input, outputs: [moveLogits, attackLogits, abilityLogits, value] })
     return new ActorCriticModel(config, model)
   }
 
@@ -132,8 +140,8 @@ export class ActorCriticModel {
 
   /** obs: [B, obsDim]。呼び出し側が入出力tensorの破棄責任を持つ。 */
   forward(obs: tf.Tensor2D): ActorCriticOutputs {
-    const [moveLogits, attackLogits, value] = this.model.apply(obs) as tf.Tensor2D[]
-    return { moveLogits, attackLogits, value }
+    const [moveLogits, attackLogits, abilityLogits, value] = this.model.apply(obs) as tf.Tensor2D[]
+    return { moveLogits, attackLogits, abilityLogits, value }
   }
 
   async save(dir: string): Promise<void> {

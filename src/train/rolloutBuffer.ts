@@ -49,8 +49,10 @@ interface RawRecord {
   obs: number[]
   moveMask: boolean[]
   attackMask: boolean[]
+  abilityMask: boolean[]
   moveAction: number
   attackAction: number
+  abilityAction: number
   oldLogProb: number
   value: number
   reward: number
@@ -110,6 +112,7 @@ export function collectRollout(
     const obsRows: number[][] = []
     const moveMaskRows: number[][] = []
     const attackMaskRows: number[][] = []
+    const abilityMaskRows: number[][] = []
 
     for (let e = 0; e < numEnvs; e++) {
       for (const unitId of envs[e].agents) {
@@ -120,21 +123,25 @@ export function collectRollout(
         obsRows.push(o.vector)
         moveMaskRows.push(m.move.map((b) => (b ? 1 : 0)))
         attackMaskRows.push(m.attack.map((b) => (b ? 1 : 0)))
+        abilityMaskRows.push(m.ability.map((b) => (b ? 1 : 0)))
       }
     }
     if (active.length === 0) break // shouldn't happen given per-step auto-reset below; defensive only
 
-    const { moveActions, attackActions, oldLogProbs, values } = tf.tidy(() => {
+    const { moveActions, attackActions, abilityActions, oldLogProbs, values } = tf.tidy(() => {
       const obsT = tf.tensor2d(obsRows)
       const moveMaskT = tf.tensor2d(moveMaskRows)
       const attackMaskT = tf.tensor2d(attackMaskRows)
-      const { moveLogits, attackLogits, value } = model.forward(obsT)
+      const abilityMaskT = tf.tensor2d(abilityMaskRows)
+      const { moveLogits, attackLogits, abilityLogits, value } = model.forward(obsT)
       const moveSample = sampleMaskedCategorical(moveLogits, moveMaskT)
       const attackSample = sampleMaskedCategorical(attackLogits, attackMaskT)
-      const jointLogProb = tf.add(moveSample.logProbs, attackSample.logProbs)
+      const abilitySample = sampleMaskedCategorical(abilityLogits, abilityMaskT)
+      const jointLogProb = tf.add(tf.add(moveSample.logProbs, attackSample.logProbs), abilitySample.logProbs)
       return {
         moveActions: Array.from(moveSample.actions.dataSync()),
         attackActions: Array.from(attackSample.actions.dataSync()),
+        abilityActions: Array.from(abilitySample.actions.dataSync()),
         oldLogProbs: Array.from(jointLogProb.dataSync()),
         values: Array.from(value.reshape([value.shape[0]]).dataSync()),
       }
@@ -142,7 +149,11 @@ export function collectRollout(
 
     const perEnvActions: Record<number, ActionInput>[] = Array.from({ length: numEnvs }, () => ({}))
     active.forEach((a, i) => {
-      perEnvActions[a.envIndex][a.unitId] = { move: moveActions[i], attack: attackActions[i] }
+      perEnvActions[a.envIndex][a.unitId] = {
+        move: moveActions[i],
+        attack: attackActions[i],
+        ability: abilityActions[i],
+      }
     })
 
     const stepResults: StepResult[] = envs.map((env, e) => env.step(perEnvActions[e]))
@@ -158,8 +169,10 @@ export function collectRollout(
         obs: obsRows[i],
         moveMask: moveMaskRows[i].map((v) => v === 1),
         attackMask: attackMaskRows[i].map((v) => v === 1),
+        abilityMask: abilityMaskRows[i].map((v) => v === 1),
         moveAction: moveActions[i],
         attackAction: attackActions[i],
+        abilityAction: abilityActions[i],
         oldLogProb: oldLogProbs[i],
         value: values[i],
         reward,
@@ -240,8 +253,10 @@ export function collectRollout(
         obs: r.obs,
         moveMask: r.moveMask,
         attackMask: r.attackMask,
+        abilityMask: r.abilityMask,
         moveAction: r.moveAction,
         attackAction: r.attackAction,
+        abilityAction: r.abilityAction,
         oldLogProb: r.oldLogProb,
         value: r.value,
         advantage: advantages[i],

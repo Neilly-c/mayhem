@@ -19,11 +19,15 @@ export interface MovementIntent {
   path: number[] | null
 }
 
-function computeSpeed(state: GameState, fromIdx: number, toIdx: number, teamId: number): number {
+function computeSpeed(state: GameState, fromIdx: number, toIdx: number, unit: UnitState): number {
   const fromNode = state.nodes[fromIdx]
   const toNode = state.nodes[toIdx]
-  const ownedBySelf = fromNode.owner === teamId && toNode.owner === teamId
-  return state.config.baseSpeed * (ownedBySelf ? 1 + state.config.territoryMoveBonus : 1)
+  const ownedBySelf = fromNode.owner === unit.teamId && toNode.owner === unit.teamId
+  const territoryMult = ownedBySelf ? 1 + state.config.territoryMoveBonus : 1
+  // ユーザー要望: speedBoostアビリティ発動中は移動速度がi倍になる。
+  const speedBoostMult =
+    unit.ability === 'speedBoost' && unit.abilityActiveTicksRemaining > 0 ? state.config.speedBoostMult : 1
+  return state.config.baseSpeed * territoryMult * speedBoostMult
 }
 
 /** §5 フォールバック: 指令未介入時は到達可能な通行可能ノードをランダムに探索目的地とする。 */
@@ -68,7 +72,7 @@ function computeDirectionIntent(
       from: unit.pos.from,
       to: unit.pos.to,
       progress: unit.pos.progress,
-      speed: computeSpeed(state, unit.pos.from, unit.pos.to, unit.teamId),
+      speed: computeSpeed(state, unit.pos.from, unit.pos.to, unit),
       destination: null,
       path: null,
     }
@@ -94,7 +98,7 @@ function computeDirectionIntent(
     from: unit.pos.to,
     to: targetIdx,
     progress: 0,
-    speed: computeSpeed(state, unit.pos.to, targetIdx, unit.teamId),
+    speed: computeSpeed(state, unit.pos.to, targetIdx, unit),
     destination: null,
     path: null,
   }
@@ -137,7 +141,7 @@ function computePathIntent(state: GameState, unit: UnitState, claimedTo: Readonl
       from,
       to,
       progress: 1 - unit.pos.progress,
-      speed: computeSpeed(state, from, to, unit.teamId),
+      speed: computeSpeed(state, from, to, unit),
       destination,
       path: path.slice(1),
     }
@@ -153,7 +157,7 @@ function computePathIntent(state: GameState, unit: UnitState, claimedTo: Readonl
       from: unit.pos.from,
       to: unit.pos.to,
       progress: unit.pos.progress,
-      speed: computeSpeed(state, unit.pos.from, unit.pos.to, unit.teamId),
+      speed: computeSpeed(state, unit.pos.from, unit.pos.to, unit),
       destination,
       path,
     }
@@ -187,7 +191,7 @@ function computePathIntent(state: GameState, unit: UnitState, claimedTo: Readonl
     from: unit.pos.to,
     to: nextHop,
     progress: 0,
-    speed: computeSpeed(state, unit.pos.to, nextHop, unit.teamId),
+    speed: computeSpeed(state, unit.pos.to, nextHop, unit),
     destination,
     path: remainingPath,
   }
@@ -267,7 +271,7 @@ export function applyMovementIntent(
     }
     path = path.slice(1)
     to = nextHop
-    progress += computeSpeed(state, from, to, unit.teamId)
+    progress += computeSpeed(state, from, to, unit)
   }
 
   unit.pos = { from, to, progress }

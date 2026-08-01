@@ -12,6 +12,8 @@ export {
   axialAdd,
   axialKey,
   nodesInRadius,
+  withinVisionStar,
+  visionStarOffsets,
 } from './hexgrid'
 export type { CubeCoord } from './hexgrid'
 export { generateMap } from './mapgen'
@@ -21,8 +23,10 @@ export { createTeamsAndUnits } from './entities'
 export { computeMovementIntent, applyMovementIntent } from './movement'
 export type { MovementIntent } from './movement'
 export { unitWorldPos, unitElevation, unitFacingVector, worldDistBetween } from './spatial'
-export { computeCombatIntents, applyCombatIntent } from './combat'
+export { computeCombatIntents, applyCombatIntent, damageShieldCoefFor } from './combat'
 export type { CombatIntent } from './combat'
+export { resolveAbilities, LASER_BEAM_DISPLAY_TICKS, isDirectionalAbility, maxCooldownFor, maxDurationFor } from './abilities'
+export type { AbilityResolution } from './abilities'
 export { resolveTerritory } from './territory'
 export { initRingState, tickRing, applySlipDamage } from './ring'
 export { applyRegen } from './regen'

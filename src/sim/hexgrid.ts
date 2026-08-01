@@ -47,6 +47,37 @@ export function axialAdd(a: AxialCoord, b: AxialCoord): AxialCoord {
   return { q: a.q + b.q, r: a.r + b.r }
 }
 
+/**
+ * ユーザー要望: 視野を「全方向`coreRadius`ホップの正六角形」+「6方向直線上のみ`spikeRange`
+ * ホップまで見通せる、幅1マスの棘」の二重形状にする(直線状に飛ぶアビリティの狙い先を、その
+ * 方向にだけ遠くまで見通せるようにするため)。棘の判定はキューブ座標の差分(dx,dy,dz)のうち
+ * いずれか1つが0であること — これはヘックスグリッド上で2点が6方向のいずれかと厳密に一直線上に
+ * あるための必要十分条件(方向ベクトルはキューブ座標で(±1,∓1,0)の並び替えなので、その方向に
+ * k歩進んだ差分は必ずどれか1軸が0のまま)。
+ */
+export function withinVisionStar(a: AxialCoord, b: AxialCoord, coreRadius: number, spikeRange: number): boolean {
+  const dist = hexDist(a, b)
+  if (dist <= coreRadius) return true
+  if (dist > spikeRange) return false
+  const ca = axialToCube(a)
+  const cb = axialToCube(b)
+  return ca.x === cb.x || ca.y === cb.y || ca.z === cb.z
+}
+
+/** `withinVisionStar`と同じ形状を原点からの相対オフセット一覧として列挙する(描画用、
+ * `render/draw.ts`のオーバーレイが`nodesInRadius`の代わりに使う)。 */
+export function visionStarOffsets(coreRadius: number, spikeRange: number): AxialCoord[] {
+  const offsets = nodesInRadius(coreRadius)
+  for (let dir = 0; dir < 6; dir++) {
+    let coord: AxialCoord = { q: 0, r: 0 }
+    for (let hops = 1; hops <= spikeRange; hops++) {
+      coord = axialAdd(coord, DIRECTIONS[dir])
+      if (hops > coreRadius) offsets.push(coord)
+    }
+  }
+  return offsets
+}
+
 export function axialKey(a: AxialCoord): string {
   return `${a.q},${a.r}`
 }

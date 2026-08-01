@@ -95,8 +95,9 @@ def test_export_tfjs_round_trip_matches_the_original_models_own_forward_pass(tmp
 
     # 4. Reference: the original PyTorch model's own forward pass on the same inputs.
     with torch.no_grad():
-        move_ref, attack_ref, value_ref = net(torch.tensor(inputs, dtype=torch.float32))
+        move_ref, attack_ref, ability_ref, value_ref = net(torch.tensor(inputs, dtype=torch.float32))
 
     assert torch.tensor(ts_output["moveLogits"], dtype=torch.float32).allclose(move_ref, atol=1e-4)
     assert torch.tensor(ts_output["attackLogits"], dtype=torch.float32).allclose(attack_ref, atol=1e-4)
+    assert torch.tensor(ts_output["abilityLogits"], dtype=torch.float32).allclose(ability_ref, atol=1e-4)
     assert torch.tensor(ts_output["value"], dtype=torch.float32).allclose(value_ref, atol=1e-4)

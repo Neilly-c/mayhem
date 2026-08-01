@@ -82,9 +82,16 @@ export class Env {
       const unit = this.sim.state.units.find((u) => u.id === unitId)
       if (!unit) continue
       const visibleEnemyIds = computeVisibleEnemies(this.sim.state, unit).map((e) => e.unit.id)
-      const { command, attackTarget } = decodeAction(action, unit.pos.to, visibleEnemyIds)
+      const { command, attackTarget, abilityCommand } = decodeAction(
+        action,
+        unit.pos.to,
+        visibleEnemyIds,
+        unit.ability,
+        this.simConfig,
+      )
       this.sim.setCommand(unitId, command)
       this.sim.setAttackTarget(unitId, attackTarget)
+      this.sim.setAbilityCommand(unitId, abilityCommand)
     }
 
     const rewards: Record<number, number> = {}

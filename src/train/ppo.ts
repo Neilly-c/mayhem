@@ -50,12 +50,17 @@ export function runPpoUpdate(
   const obsT = tf.tensor2d(steps.map((s) => s.obs))
   const moveMaskT = tf.tensor2d(steps.map((s) => s.moveMask.map((b) => (b ? 1 : 0))))
   const attackMaskT = tf.tensor2d(steps.map((s) => s.attackMask.map((b) => (b ? 1 : 0))))
+  const abilityMaskT = tf.tensor2d(steps.map((s) => s.abilityMask.map((b) => (b ? 1 : 0))))
   const moveActionsT = tf.tensor1d(
     steps.map((s) => s.moveAction),
     'int32',
   )
   const attackActionsT = tf.tensor1d(
     steps.map((s) => s.attackAction),
+    'int32',
+  )
+  const abilityActionsT = tf.tensor1d(
+    steps.map((s) => s.abilityAction),
     'int32',
   )
   const oldLogProbT = tf.tensor1d(steps.map((s) => s.oldLogProb))
@@ -86,18 +91,24 @@ export function runPpoUpdate(
             const obsSlice = tf.gather(obsT, idxT) as tf.Tensor2D
             const moveMaskSlice = tf.gather(moveMaskT, idxT) as tf.Tensor2D
             const attackMaskSlice = tf.gather(attackMaskT, idxT) as tf.Tensor2D
+            const abilityMaskSlice = tf.gather(abilityMaskT, idxT) as tf.Tensor2D
             const moveActionsSlice = tf.gather(moveActionsT, idxT) as tf.Tensor1D
             const attackActionsSlice = tf.gather(attackActionsT, idxT) as tf.Tensor1D
+            const abilityActionsSlice = tf.gather(abilityActionsT, idxT) as tf.Tensor1D
             const oldLogProbSlice = tf.gather(oldLogProbT, idxT) as tf.Tensor1D
             const oldValueSlice = tf.gather(oldValueT, idxT) as tf.Tensor1D
             const returnsSlice = tf.gather(returnsT, idxT) as tf.Tensor1D
             const advantagesSlice = tf.gather(advantagesT, idxT) as tf.Tensor1D
 
-            const { moveLogits, attackLogits, value } = model.forward(obsSlice)
+            const { moveLogits, attackLogits, abilityLogits, value } = model.forward(obsSlice)
             const moveEval = evaluateMaskedCategorical(moveLogits, moveMaskSlice, moveActionsSlice)
             const attackEval = evaluateMaskedCategorical(attackLogits, attackMaskSlice, attackActionsSlice)
-            const newLogProb = tf.add(moveEval.logProbs, attackEval.logProbs) as tf.Tensor1D
-            const entropyPerSample = tf.add(moveEval.entropy, attackEval.entropy) as tf.Tensor1D
+            const abilityEval = evaluateMaskedCategorical(abilityLogits, abilityMaskSlice, abilityActionsSlice)
+            const newLogProb = tf.add(tf.add(moveEval.logProbs, attackEval.logProbs), abilityEval.logProbs) as tf.Tensor1D
+            const entropyPerSample = tf.add(
+              tf.add(moveEval.entropy, attackEval.entropy),
+              abilityEval.entropy,
+            ) as tf.Tensor1D
 
             const ratio = tf.exp(tf.sub(newLogProb, oldLogProbSlice))
             const surr1 = tf.mul(ratio, advantagesSlice)
@@ -158,7 +169,19 @@ export function runPpoUpdate(
       }
     }
   } finally {
-    tf.dispose([obsT, moveMaskT, attackMaskT, moveActionsT, attackActionsT, oldLogProbT, oldValueT, returnsT, advantagesT])
+    tf.dispose([
+      obsT,
+      moveMaskT,
+      attackMaskT,
+      abilityMaskT,
+      moveActionsT,
+      attackActionsT,
+      abilityActionsT,
+      oldLogProbT,
+      oldValueT,
+      returnsT,
+      advantagesT,
+    ])
   }
 
   const w = Math.max(1, accum.weight)

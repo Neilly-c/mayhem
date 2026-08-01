@@ -26,6 +26,10 @@ function makeUnit(id: number, teamId: number, hp: number, alive = true): UnitSta
     destination: null,
     path: null,
     lastDamagedByTeamId: null,
+    ability: 'paintball',
+    abilityCooldownRemaining: 0,
+    abilityActiveTicksRemaining: 0,
+    abilityCommand: { type: 'none' },
   }
 }
 
@@ -53,6 +57,10 @@ function makeState(
       nextCenter: 0,
       nextRadius: 100,
     },
+    projectiles: [],
+    nextProjectileId: 0,
+    laserBeams: [],
+    nextLaserBeamId: 0,
   }
 }
 

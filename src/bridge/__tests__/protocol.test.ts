@@ -48,7 +48,7 @@ describe('NdjsonDecoder', () => {
     const message: BridgeRequest = {
       id: 5,
       type: 'step',
-      payload: { envs: [{ localEnvIndex: 0, actions: [{ unitId: 0, move: 1, attack: 0 }] }] },
+      payload: { envs: [{ localEnvIndex: 0, actions: [{ unitId: 0, move: 1, attack: 0, ability: 0 }] }] },
     }
     expect(decoder.push(encodeMessage(message))).toEqual([message])
   })

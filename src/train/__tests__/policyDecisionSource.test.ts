@@ -18,6 +18,10 @@ function makeUnit(id: number, teamId: number, atNode: number, hp = 100, alive = 
     destination: null,
     path: null,
     lastDamagedByTeamId: null,
+    ability: 'paintball',
+    abilityCooldownRemaining: 0,
+    abilityActiveTicksRemaining: 0,
+    abilityCommand: { type: 'none' },
   }
 }
 
@@ -26,7 +30,7 @@ function makeState(seed: number, overrides?: Partial<SimConfig>): GameState {
   const config = createConfig({
     mapRadius: 3,
     wallThreshold: 0,
-    visionRange: 100,
+    visionCoreRadius: 100,
     attackRange: 2,
     maxVisibleEnemies: 3,
     ...overrides,
@@ -44,6 +48,10 @@ function makeState(seed: number, overrides?: Partial<SimConfig>): GameState {
     ],
     units: [],
     ring: initRingState(seed, config, nodes),
+    projectiles: [],
+    nextProjectileId: 0,
+    laserBeams: [],
+    nextLaserBeamId: 0,
   }
   state.ring.activeRadius = 100
   return state
@@ -87,7 +95,7 @@ describe('policyDecisionSource', () => {
   it('never targets an enemy that is visible but out of attack range', () => {
     const state = makeState(2, { attackRange: 2 })
     const selfNode = nodeAt(state, 0, 0)
-    const enemyNode = nodeAt(state, 3, 0) // world distance 3.0 > attackRange 2.0, but within visionRange 100
+    const enemyNode = nodeAt(state, 3, 0) // world distance 3.0 > attackRange 2.0, but within visionCoreRadius 100
     state.units = [makeUnit(0, 0, selfNode), makeUnit(1, 1, enemyNode)]
     const model = buildModelFor(state.config)
     const source = createPolicyDecisionSource(model)

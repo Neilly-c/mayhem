@@ -1,10 +1,25 @@
 import type { GameState, UnitState, Vec2 } from './types'
 import { unitElevation, unitFacingVector, unitWorldPos, worldDistBetween } from './spatial'
+import { withinVisionStar } from './hexgrid'
 
 export interface CombatIntent {
   attackerId: number
   targetId: number
   damage: number
+  /** ユーザー要望: `chainDamage`アビリティのクラスタ被害として与えられたダメージかどうか
+   * (主攻撃はfalse/未設定)。通常攻撃と違うSEを鳴らし分けるために使う(§useSimulationLoop.ts)。 */
+  chain?: boolean
+}
+
+/**
+ * ユーザー要望: `damageShield`アビリティ発動中のユニットは、リングダメージ以外の被ダメージが
+ * 全て`damageShieldCoef`倍される。通常攻撃(このファイル)とアビリティのAOEダメージ
+ * (`abilities.ts`)の両方がここを経由することで、シールドの適用箇所を一本化する
+ * (`ring.ts`のスリップダメージは意図的にこの関数を経由させない)。
+ */
+export function damageShieldCoefFor(target: UnitState, config: GameState['config']): number {
+  if (target.ability === 'damageShield' && target.abilityActiveTicksRemaining > 0) return config.damageShieldCoef
+  return 1
 }
 
 function highGroundCoef(state: GameState, elevAttacker: number, elevTarget: number): number {
@@ -42,6 +57,8 @@ function chainDamageVictims(
 ): UnitState[] {
   const radius = state.config.chainDamageRadius
   if (radius <= 0 || state.config.chainDamageCoef <= 0) return []
+  // ユーザー要望: 連鎖ダメージは常時有効ではなく、`chainDamage`アビリティ発動中の攻撃者にのみ働く。
+  if (attacker.ability !== 'chainDamage' || attacker.abilityActiveTicksRemaining <= 0) return []
 
   return state.units.filter(
     (u) =>
@@ -67,20 +84,30 @@ export function computeCombatIntents(state: GameState, attacker: UnitState): Com
   const attackerWorldPos = unitWorldPos(state, attacker)
   const targetWorldPos = unitWorldPos(state, target)
   const dist = worldDistBetween(attackerWorldPos, targetWorldPos)
-  if (dist > state.config.visionRange || dist > state.config.attackRange) return []
+  if (dist > state.config.attackRange) return []
+  const attackerNode = state.nodes[attacker.pos.to]
+  const targetNode = state.nodes[target.pos.to]
+  if (!withinVisionStar(attackerNode, targetNode, state.config.visionCoreRadius, state.config.visionSpikeRange)) return []
 
   const onOwnTerritory =
     attacker.pos.from === attacker.pos.to && state.nodes[attacker.pos.to].owner === attacker.teamId
   const territoryMultiplier = onOwnTerritory ? 1 + state.config.territoryAtkBonus : 1
   const highGround = highGroundCoef(state, unitElevation(state, attacker), unitElevation(state, target))
   const facing = facingDamageCoef(state, attacker, attackerWorldPos, targetWorldPos)
-  const damage = state.config.baseDamage * territoryMultiplier * highGround * facing
+  const rawDamage = state.config.baseDamage * territoryMultiplier * highGround * facing
 
-  const intents: CombatIntent[] = [{ attackerId: attacker.id, targetId: target.id, damage }]
+  const intents: CombatIntent[] = [
+    { attackerId: attacker.id, targetId: target.id, damage: rawDamage * damageShieldCoefFor(target, state.config) },
+  ]
 
-  const chainDamage = damage * state.config.chainDamageCoef
+  const chainDamage = rawDamage * state.config.chainDamageCoef
   for (const victim of chainDamageVictims(state, attacker, target, targetWorldPos)) {
-    intents.push({ attackerId: attacker.id, targetId: victim.id, damage: chainDamage })
+    intents.push({
+      attackerId: attacker.id,
+      targetId: victim.id,
+      damage: chainDamage * damageShieldCoefFor(victim, state.config),
+      chain: true,
+    })
   }
 
   return intents

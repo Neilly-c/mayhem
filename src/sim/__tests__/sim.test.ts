@@ -155,7 +155,7 @@ describe('Simulation', () => {
       teamCount: 2,
       unitsPerTeam: 1,
       baseDamage: 500,
-      visionRange: 1000,
+      visionCoreRadius: 1000,
       attackRange: 1000,
       highGroundK: 0, // isolate combat wiring from the elevation-dependent damage formula (see combat.test.ts)
     })
@@ -188,7 +188,7 @@ describe('Simulation', () => {
       teamCount: 3,
       unitsPerTeam: 1,
       baseDamage: 10,
-      visionRange: 1000,
+      visionCoreRadius: 1000,
       attackRange: 1000,
       highGroundK: 0,
       // Idle units wander toward a random explore destination each tick (movement.ts's

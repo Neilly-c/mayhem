@@ -54,16 +54,17 @@ async function runVerify(args: string[]): Promise<void> {
 
   const inputs = JSON.parse(fs.readFileSync(inputsPath, 'utf-8')) as number[][]
   const obs = tf.tensor2d(inputs)
-  const { moveLogits, attackLogits, value } = model.forward(obs)
+  const { moveLogits, attackLogits, abilityLogits, value } = model.forward(obs)
 
   const result = {
     moveLogits: await moveLogits.array(),
     attackLogits: await attackLogits.array(),
+    abilityLogits: await abilityLogits.array(),
     value: await value.array(),
   }
   console.log(JSON.stringify(result))
 
-  tf.dispose([obs, moveLogits, attackLogits, value])
+  tf.dispose([obs, moveLogits, attackLogits, abilityLogits, value])
 }
 
 async function main(): Promise<void> {

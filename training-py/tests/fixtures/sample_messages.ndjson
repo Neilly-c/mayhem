@@ -1,9 +1,9 @@
 {"id":1,"type":"init","payload":{"workerId":0,"numEnvs":4,"baseSeed":42,"simConfigOverrides":{"mapRadius":8,"teamCount":6,"unitsPerTeam":3},"maxTicks":3000}}
-{"id":1,"ok":true,"result":{"obsDim":370,"maxVisibleEnemies":6,"moveActions":7}}
+{"id":1,"ok":true,"result":{"obsDim":370,"maxVisibleEnemies":6,"moveActions":7,"abilityActions":7}}
 {"id":2,"type":"reset","payload":{"envs":[{"localEnvIndex":0,"seed":7}]}}
-{"id":2,"ok":true,"result":{"envs":[{"localEnvIndex":0,"episodeId":0,"agents":[{"unitId":0,"observation":[0.1,0.2],"visibleEnemyIds":[-1],"actionMask":{"move":[true,true,true,true,true,true,true],"attack":[true,false]}}]}]}}
-{"id":3,"type":"step","payload":{"envs":[{"localEnvIndex":0,"actions":[{"unitId":0,"move":1,"attack":0}]}]}}
-{"id":3,"ok":true,"result":{"envs":[{"localEnvIndex":0,"episodeId":0,"units":[{"unitId":0,"reward":0.5,"terminated":false,"truncated":false}],"continuing":[],"reset":{"newEpisodeId":1,"bootstrap":[{"unitId":0,"observation":[0.3,0.4]}],"agents":[{"unitId":5,"observation":[0.0,0.0],"visibleEnemyIds":[-1],"actionMask":{"move":[true,false,true,true,true,true,true],"attack":[true]}}]}}]}}
+{"id":2,"ok":true,"result":{"envs":[{"localEnvIndex":0,"episodeId":0,"agents":[{"unitId":0,"observation":[0.1,0.2],"visibleEnemyIds":[-1],"actionMask":{"move":[true,true,true,true,true,true,true],"attack":[true,false],"ability":[true,true,false,false,false,false,false]}}]}]}}
+{"id":3,"type":"step","payload":{"envs":[{"localEnvIndex":0,"actions":[{"unitId":0,"move":1,"attack":0,"ability":0}]}]}}
+{"id":3,"ok":true,"result":{"envs":[{"localEnvIndex":0,"episodeId":0,"units":[{"unitId":0,"reward":0.5,"terminated":false,"truncated":false}],"continuing":[],"reset":{"newEpisodeId":1,"bootstrap":[{"unitId":0,"observation":[0.3,0.4]}],"agents":[{"unitId":5,"observation":[0.0,0.0],"visibleEnemyIds":[-1],"actionMask":{"move":[true,false,true,true,true,true,true],"attack":[true],"ability":[true,false,false,false,false,false,false]}}]}}]}}
 {"id":4,"type":"resolveSimConfig","payload":{"iteration":60}}
 {"id":4,"ok":true,"result":{"simConfig":{"mapRadius":14,"teamCount":6,"unitsPerTeam":3}}}
 {"id":5,"type":"shutdown","payload":{}}

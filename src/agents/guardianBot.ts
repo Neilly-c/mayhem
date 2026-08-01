@@ -2,6 +2,7 @@ import type { GameState, MoveCommand, UnitState } from '../sim'
 import { unitWorldPos, world, worldDistBetween } from '../sim'
 import { computeVisibleEnemies } from '../env'
 import type { UnitDecision } from './types'
+import { decideAbilityCommand } from './abilityHelpers'
 import { findNearestOwnNode, findNearestSafeNode, findNearestUnclaimedNode, teammateOccupiedNodes } from './movementHelpers'
 
 export interface GuardianBotConfig {
@@ -110,7 +111,7 @@ export function decideCommands(
       }
     }
 
-    decisions.set(unitId, { command, attackTarget })
+    decisions.set(unitId, { command, attackTarget, abilityCommand: decideAbilityCommand(state, unit, visibleEnemies) })
   }
 
   return decisions

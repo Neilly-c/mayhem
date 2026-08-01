@@ -28,7 +28,7 @@ describe('Env: step', () => {
       const results = []
       for (let i = 0; i < 5; i++) {
         const actions: Record<number, ActionInput> = {}
-        for (const id of env.agents) actions[id] = { move: (i + id) % 7, attack: 0 }
+        for (const id of env.agents) actions[id] = { move: (i + id) % 7, attack: 0, ability: 0 }
         results.push(env.step(actions))
       }
       return results
@@ -45,7 +45,7 @@ describe('Env: step', () => {
     let moved = false
     for (let dir = 0; dir < 6 && !moved; dir++) {
       const fresh = Env.create(3, { simConfig: SMALL_CONFIG })
-      fresh.step({ [unitId]: { move: dir + 1, attack: 0 } })
+      fresh.step({ [unitId]: { move: dir + 1, attack: 0, ability: 0 } })
       const after = fresh.state.units.find((u) => u.id === unitId)!.pos
       if (after.to !== before || after.from !== before) moved = true
     }
@@ -58,7 +58,7 @@ describe('Env: step', () => {
     const startNode = env.state.units.find((u) => u.id === unitId)!.pos.to
 
     for (let i = 0; i < 5; i++) {
-      env.step({ [unitId]: { move: 0, attack: 0 } })
+      env.step({ [unitId]: { move: 0, attack: 0, ability: 0 } })
       const pos = env.state.units.find((u) => u.id === unitId)!.pos
       expect(pos.from).toBe(startNode)
       expect(pos.to).toBe(startNode)
@@ -67,7 +67,7 @@ describe('Env: step', () => {
 
   it('wires the attack action through to combat and reward', () => {
     const env = Env.create(4, {
-      simConfig: { ...SMALL_CONFIG, visionRange: 1000, attackRange: 1000, baseDamage: 10, highGroundK: 0 },
+      simConfig: { ...SMALL_CONFIG, visionCoreRadius: 1000, attackRange: 1000, baseDamage: 10, highGroundK: 0 },
     })
     const attacker = env.agents.find((id) => env.state.units.find((u) => u.id === id)?.teamId === 0)!
     const victim = env.state.units.find((u) => u.teamId === 1)!.id
@@ -78,7 +78,7 @@ describe('Env: step', () => {
     const attackSlot = obs[attacker].visibleEnemyIds.indexOf(victim) + 1
 
     const before = env.state.units.find((u) => u.id === victim)!.hp
-    const result = env.step({ [attacker]: { move: 0, attack: attackSlot } })
+    const result = env.step({ [attacker]: { move: 0, attack: attackSlot, ability: 0 } })
     const after = env.state.units.find((u) => u.id === victim)!.hp
 
     expect(after).toBeLessThan(before)
@@ -87,7 +87,7 @@ describe('Env: step', () => {
 
   it('drops a unit from agents/observations after it dies, and reports its termination', () => {
     const env = Env.create(5, {
-      simConfig: { ...SMALL_CONFIG, visionRange: 1000, attackRange: 1000, baseDamage: 1000, highGroundK: 0 },
+      simConfig: { ...SMALL_CONFIG, visionCoreRadius: 1000, attackRange: 1000, baseDamage: 1000, highGroundK: 0 },
     })
     const attacker = env.state.units.find((u) => u.teamId === 0)!.id
     const victim = env.state.units.find((u) => u.teamId === 1)!.id
@@ -96,7 +96,7 @@ describe('Env: step', () => {
     const attackSlot = obs[attacker].visibleEnemyIds.indexOf(victim) + 1
     expect(attackSlot).toBeGreaterThan(0) // victim must be visible for this test to be meaningful
 
-    const result = env.step({ [attacker]: { move: 0, attack: attackSlot } })
+    const result = env.step({ [attacker]: { move: 0, attack: attackSlot, ability: 0 } })
 
     expect(env.state.units.find((u) => u.id === victim)!.alive).toBe(false)
     expect(result.terminations[victim]).toBe(true)

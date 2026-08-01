@@ -69,9 +69,10 @@ export function playOneEpisode(
     if (sim.state.tick % sim.state.config.decisionInterval === 0) {
       const aliveIds = sim.state.units.filter((u) => u.alive).map((u) => u.id)
       const decisions = decisionSource(sim.state, aliveIds)
-      for (const [unitId, { command, attackTarget }] of decisions) {
+      for (const [unitId, { command, attackTarget, abilityCommand }] of decisions) {
         sim.setCommand(unitId, command)
         sim.setAttackTarget(unitId, attackTarget)
+        sim.setAbilityCommand(unitId, abilityCommand)
       }
       recordedLog?.push(decisionsToLogEntry(sim.state.tick, decisions))
     }

@@ -1,9 +1,10 @@
-import type { GameState, MoveCommand, SimConfig, TickEvents } from './types'
+import type { AbilityCommand, GameState, MoveCommand, SimConfig, TickEvents } from './types'
 import { createConfig } from './config'
 import { generateMap } from './mapgen'
 import { createTeamsAndUnits } from './entities'
 import { computeMovementIntent, applyMovementIntent } from './movement'
 import { computeCombatIntents, applyCombatIntent, type CombatIntent } from './combat'
+import { resolveAbilities } from './abilities'
 import { resolveTerritory } from './territory'
 import { initRingState, tickRing, applySlipDamage } from './ring'
 import { applyRegen } from './regen'
@@ -29,7 +30,20 @@ export class Simulation {
     const { nodes, neighbors } = generateMap(seed, config)
     const { teams, units } = createTeamsAndUnits(seed, config, nodes, neighbors)
     const ring = initRingState(seed, config, nodes)
-    return new Simulation({ seed, tick: 0, config, nodes, neighbors, teams, units, ring })
+    return new Simulation({
+      seed,
+      tick: 0,
+      config,
+      nodes,
+      neighbors,
+      teams,
+      units,
+      ring,
+      projectiles: [],
+      nextProjectileId: 0,
+      laserBeams: [],
+      nextLaserBeamId: 0,
+    })
   }
 
   /**
@@ -67,7 +81,20 @@ export class Simulation {
     }
     for (const intent of combatIntents) applyCombatIntent(this.state, intent)
 
-    const territoryCaptures = resolveTerritory(this.state, passedThroughNodes)
+    // ユーザー要望のアビリティフェーズ: 戦闘直後・テリトリー解決前に置く。こうすることで、
+    // このtickに新規発動したdamageShield/chainDamageは(まだ効果時間が始まっていないので)
+    // 同tickの通常戦闘には影響しない一方、ペイントボール/レーザーの塗り即時奪取は
+    // resolveTerritoryより先に確定させ、通常のテリトリー解決と競合しないようにする。
+    const {
+      damageIntents: abilityDamageIntents,
+      captures: abilityCaptures,
+      activations: abilityActivations,
+      paintballImpacts,
+    } = resolveAbilities(this.state, order)
+    for (const intent of abilityDamageIntents) applyCombatIntent(this.state, intent)
+    combatIntents.push(...abilityDamageIntents)
+
+    const territoryCaptures = [...resolveTerritory(this.state, passedThroughNodes), ...abilityCaptures]
     const regen = applyRegen(this.state)
 
     tickRing(this.state)
@@ -101,6 +128,8 @@ export class Simulation {
       territoryCaptures,
       regen,
       slipDamage,
+      abilityActivations,
+      paintballImpacts,
     }
   }
 
@@ -112,6 +141,11 @@ export class Simulation {
   setAttackTarget(unitId: number, targetUnitId: number | null): void {
     const unit = this.state.units.find((u) => u.id === unitId)
     if (unit) unit.attackTarget = targetUnitId
+  }
+
+  setAbilityCommand(unitId: number, command: AbilityCommand): void {
+    const unit = this.state.units.find((u) => u.id === unitId)
+    if (unit) unit.abilityCommand = command
   }
 
   toJSON(): GameState {

@@ -19,6 +19,10 @@ function makeUnit(id: number, teamId: number, atNode: number, hp = 100): UnitSta
     destination: null,
     path: null,
     lastDamagedByTeamId: null,
+    ability: 'paintball',
+    abilityCooldownRemaining: 0,
+    abilityActiveTicksRemaining: 0,
+    abilityCommand: { type: 'none' },
   }
 }
 
@@ -33,7 +37,7 @@ function makeState(nodes: NodeState[], units: UnitState[], overrides?: Partial<G
   return {
     seed: 1,
     tick: 0,
-    config: createConfig({ visionRange: 100, attackRange: 2, ...overrides }),
+    config: createConfig({ visionCoreRadius: 100, attackRange: 2, ...overrides }),
     nodes,
     neighbors,
     teams: [
@@ -51,6 +55,10 @@ function makeState(nodes: NodeState[], units: UnitState[], overrides?: Partial<G
       nextCenter: 0,
       nextRadius: 100,
     },
+    projectiles: [],
+    nextProjectileId: 0,
+    laserBeams: [],
+    nextLaserBeamId: 0,
   }
 }
 
@@ -79,7 +87,7 @@ describe('raiderBot', () => {
 
   it('chases a visible enemy that is out of range instead of holding or expanding', () => {
     // self stands at node 1 (neighbors at x=0 and x=2); the enemy sits far out at x=90 -- visible
-    // (visionRange 100) but well outside attackRange, so the only sensible move is toward it.
+    // (visionCoreRadius 100) but well outside attackRange, so the only sensible move is toward it.
     const nodes = [makeNode(0), makeNode(1), makeNode(2), makeNode(90)]
     const self = makeUnit(0, 0, 1)
     const farEnemy = makeUnit(1, 1, 3)

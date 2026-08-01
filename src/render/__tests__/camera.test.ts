@@ -24,6 +24,10 @@ function makeState(mapRadius: number): GameState {
       nextCenter: 0,
       nextRadius: 100,
     },
+    projectiles: [],
+    nextProjectileId: 0,
+    laserBeams: [],
+    nextLaserBeamId: 0,
   }
 }
 

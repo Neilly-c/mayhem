@@ -1,6 +1,9 @@
-import type { NodeState, SimConfig, TeamState, UnitState } from './types'
+import type { AbilityKind, NodeState, SimConfig, TeamState, UnitState } from './types'
 import { world } from './hexgrid'
-import { deriveRng, type RngFn } from './rng'
+import { deriveRng, randInt, type RngFn } from './rng'
+
+/** ユーザー要望: ユニットごとに開始時1種ランダム割り振り(シード付き、チーム内重複可)。 */
+const ABILITY_KINDS: readonly AbilityKind[] = ['paintball', 'laser', 'damageShield', 'speedBoost', 'chainDamage']
 
 function shuffle<T>(arr: T[], rng: RngFn): void {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -69,6 +72,7 @@ export function createTeamsAndUnits(
 
   const occupied = new Set<number>()
   const spawnRng = deriveRng(seed, 'spawn')
+  const abilityRng = deriveRng(seed, 'ability')
 
   const centerTeamCount = Math.min(1, config.teamCount)
   const peripheryTeamCount = config.teamCount - centerTeamCount
@@ -139,6 +143,10 @@ export function createTeamsAndUnits(
         destination: null,
         path: null,
         lastDamagedByTeamId: null,
+        ability: ABILITY_KINDS[randInt(abilityRng, ABILITY_KINDS.length)],
+        abilityCooldownRemaining: 0,
+        abilityActiveTicksRemaining: 0,
+        abilityCommand: { type: 'none' },
       })
     }
   }

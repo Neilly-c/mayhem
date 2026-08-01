@@ -18,11 +18,22 @@ function makeUnit(id: number, teamId: number, atNode: number): UnitState {
     destination: null,
     path: null,
     lastDamagedByTeamId: null,
+    ability: 'paintball',
+    abilityCooldownRemaining: 0,
+    abilityActiveTicksRemaining: 0,
+    abilityCommand: { type: 'none' },
   }
 }
 
 function makeState(seed: number, overrides?: Partial<SimConfig>): GameState {
-  const config = createConfig({ mapRadius: 4, wallThreshold: 0, visionRange: 2.0, attackRange: 2.0, ...overrides })
+  const config = createConfig({
+    mapRadius: 4,
+    wallThreshold: 0,
+    visionCoreRadius: 2,
+    visionSpikeRange: 2,
+    attackRange: 2.0,
+    ...overrides,
+  })
   const { nodes, neighbors } = generateMap(seed, config)
   return {
     seed,
@@ -36,6 +47,10 @@ function makeState(seed: number, overrides?: Partial<SimConfig>): GameState {
     ],
     units: [],
     ring: initRingState(seed, config, nodes),
+    projectiles: [],
+    nextProjectileId: 0,
+    laserBeams: [],
+    nextLaserBeamId: 0,
   }
 }
 
@@ -61,7 +76,7 @@ describe('createTeamRoutedDecisionSource', () => {
   it('routes each team to its assigned bot and merges the results', () => {
     const state = makeState(1)
     const team0Node = nodeAt(state, 0, 0)
-    const team1Node = nodeAt(state, 3, 0) // far enough apart that visionRange(2.0) keeps them mutually invisible
+    const team1Node = nodeAt(state, 3, 0) // hex distance 3 > visionCoreRadius/visionSpikeRange(2) keeps them mutually invisible
     state.ring.activeRadius = 100
     state.units = [makeUnit(0, 0, team0Node), makeUnit(1, 1, team1Node)]
 

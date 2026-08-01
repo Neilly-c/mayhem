@@ -1,7 +1,44 @@
 import type { GameState } from '../sim'
 import { getTerritoryRanking, isGameOver, teamTerritoryRate } from '../sim'
-import { computeVisibleEnemies } from '../env'
-import { teamColor } from '../render'
+import type { AbilityShape } from '../render'
+import { ABILITY_LABELS, ABILITY_ORDER, ABILITY_SHAPES, isBuffAbility, teamColor } from '../render'
+
+/** ユーザー要望: ユニット形状の凡例用アイコン。`render/draw.ts`のcanvas描画(`unitShapePath`)と
+ * 同じ生成式(正多角形/星形の頂点)をSVGで再現する — 完全なピクセル一致は狙わず、同じ形状族
+ * であることが伝わればよい。 */
+function polygonPoints(sides: number, radius: number, rotation: number): string {
+  return Array.from({ length: sides }, (_, k) => {
+    const angle = rotation + (k * Math.PI * 2) / sides
+    const x = 12 + Math.cos(angle) * radius
+    const y = 12 + Math.sin(angle) * radius
+    return `${x.toFixed(2)},${y.toFixed(2)}`
+  }).join(' ')
+}
+
+function starPoints(outerRadius: number, innerRadius: number, points: number): string {
+  return Array.from({ length: points * 2 }, (_, k) => {
+    const r = k % 2 === 0 ? outerRadius : innerRadius
+    const angle = -Math.PI / 2 + (k * Math.PI) / points
+    const x = 12 + Math.cos(angle) * r
+    const y = 12 + Math.sin(angle) * r
+    return `${x.toFixed(2)},${y.toFixed(2)}`
+  }).join(' ')
+}
+
+function AbilityIconShape({ shape }: { shape: AbilityShape }) {
+  switch (shape) {
+    case 'circle':
+      return <circle cx={12} cy={12} r={9} />
+    case 'triangle':
+      return <polygon points={polygonPoints(3, 10, -Math.PI / 2)} />
+    case 'hexagon':
+      return <polygon points={polygonPoints(6, 9, -Math.PI / 2)} />
+    case 'diamond':
+      return <polygon points={polygonPoints(4, 10, -Math.PI / 2)} />
+    case 'star':
+      return <polygon points={starPoints(11, 4.5, 5)} />
+  }
+}
 
 /** 棒グラフの表示上限。ユーザー要望で50%→25%に変更(小さな差をより見やすくする)。 */
 const TERRITORY_BAR_MAX_PERCENT = 25
@@ -46,8 +83,8 @@ export function DebugPanel({ state, selectedUnitId }: Props) {
           <tr>
             <th>チーム</th>
             <th>残数</th>
-            <th>HP合計</th>
-            <th>占領率</th>
+            <th className="col-hp">HP合計</th>
+            <th className="col-territory">占領率</th>
             <th>状態</th>
           </tr>
         </thead>
@@ -61,8 +98,8 @@ export function DebugPanel({ state, selectedUnitId }: Props) {
               <td>
                 {aliveUnits.length}/{teamUnits.length}
               </td>
-              <td>{totalHp.toFixed(1)}</td>
-              <td>{territoryPercent.toFixed(2)}%</td>
+              <td className="col-hp">{totalHp.toFixed(1)}</td>
+              <td className="col-territory">{territoryPercent.toFixed(2)}%</td>
               <td>{rank !== null ? `${rank}位` : team.alive ? '生存' : '全滅'}</td>
             </tr>
           ))}
@@ -102,12 +139,25 @@ export function DebugPanel({ state, selectedUnitId }: Props) {
         })}
       </div>
 
+      {/* ユーザー要望: ユニット形状(円/三角/六角形/ひし形/星)とアビリティの対応を示す判例。 */}
+      <div className="ability-legend">
+        {ABILITY_ORDER.map((kind) => (
+          <div key={kind} className="ability-legend-item">
+            <svg width={16} height={16} viewBox="0 0 24 24" className="ability-legend-icon">
+              <AbilityIconShape shape={ABILITY_SHAPES[kind]} />
+            </svg>
+            <span>{ABILITY_LABELS[kind]}</span>
+          </div>
+        ))}
+      </div>
+
       <h3>選択中ユニット</h3>
       {selectedUnit ? (
         <dl>
-          <dt>ID / チーム</dt>
+          <dt>チーム / ID</dt>
           <dd>
-            {selectedUnit.id} / チーム{selectedUnit.teamId}
+            <span className="team-swatch" style={{ background: teamColor(selectedUnit.teamId) }} />
+            チーム{selectedUnit.teamId} / {selectedUnit.id}
           </dd>
           <dt>HP</dt>
           <dd>
@@ -117,8 +167,20 @@ export function DebugPanel({ state, selectedUnitId }: Props) {
           <dd>{selectedUnit.command.type}</dd>
           <dt>攻撃対象</dt>
           <dd>{selectedUnit.attackTarget ?? 'なし'}</dd>
-          <dt>視認中の敵</dt>
-          <dd>{computeVisibleEnemies(state, selectedUnit).length}体</dd>
+          <dt>アビリティ</dt>
+          <dd>{ABILITY_LABELS[selectedUnit.ability]}</dd>
+          <dt>状態</dt>
+          <dd>
+            {isBuffAbility(selectedUnit.ability)
+              ? selectedUnit.abilityActiveTicksRemaining > 0
+                ? `発動中(残り${selectedUnit.abilityActiveTicksRemaining}tick)`
+                : '待機中'
+              : '-'}
+          </dd>
+          <dt>クールダウン</dt>
+          <dd>
+            {selectedUnit.abilityCooldownRemaining > 0 ? `残り${selectedUnit.abilityCooldownRemaining}tick` : '使用可能'}
+          </dd>
         </dl>
       ) : (
         <p>キャンバス上のユニットをクリックして選択してください。</p>

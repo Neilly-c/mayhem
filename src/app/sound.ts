@@ -126,6 +126,19 @@ export function playHit(): void {
   tone(220, 120, 0.06, 'square', 0.05)
 }
 
+/** ユーザー要望: チェインダメージが1体以上の敵に成功した際、通常の`playHit`とは違うSEを鳴らす
+ * (どの攻撃が連鎖したのか耳で分かるように)。`playHit`が単発のノイズ+低音1つなのに対し、
+ * 短い間隔で3回弾ける「バチバチバチ」という電撃的な連打にして「複数箇所に波及した」感を出す。 */
+export function playChainHit(): void {
+  const pulses = 3
+  const interval = 0.045
+  for (let i = 0; i < pulses; i++) {
+    const t = i * interval
+    noiseBurst(0.035, 0.09, 3400, t)
+    tone(900 - i * 120, 500 - i * 80, 0.04, 'square', 0.07, t)
+  }
+}
+
 /** 撃破。 */
 export function playKill(): void {
   noiseBurst(0.25, 0.28, 900)
@@ -154,4 +167,44 @@ export function playRingShrink(): void {
 export function playGameOver(): void {
   const notes = [523.25, 659.25, 783.99, 1046.5] // C5 E5 G5 C6
   notes.forEach((freq, i) => tone(freq, freq, 0.25, 'triangle', 0.22, i * 0.14))
+}
+
+/** ユーザー要望: アビリティ発動ごとに専用のSEを鳴らす。同一tickに同種のアビリティが複数
+ * 発動しても呼び出し側(§useSimulationLoop.ts)が種類ごとに1回だけ呼ぶので、ここでは
+ * 単発の音だけを定義すればよい。 */
+
+/** ペイントボール発射: 短い「ポン」という空気音+低いポップ音。 */
+export function playPaintball(): void {
+  noiseBurst(0.05, 0.1, 2600)
+  tone(300, 180, 0.09, 'sine', 0.14)
+}
+
+/** ユーザー要望: ペイントボール着弾時のスプラッシュ音。発射音(`playPaintball`、短く軽いポン音)
+ * とは別の、着弾の瞬間だけに鳴る音 — 広がる塗料をイメージした、低域中心のこもったノイズバースト
+ * (発射音より低いフィルタ周波数・長めの減衰)に、水っぽい下降トーンを重ねる。 */
+export function playPaintballSplash(): void {
+  noiseBurst(0.16, 0.16, 900)
+  tone(500, 140, 0.14, 'sine', 0.12, 0.01)
+}
+
+/** レーザー発射: 鋭く下降するsawtoothのビーム音。 */
+export function playLaser(): void {
+  tone(2200, 400, 0.14, 'sawtooth', 0.16)
+}
+
+/** ダメージシールド発動: ベルの上昇するシマー音(防御の張り感)。 */
+export function playDamageShield(): void {
+  bellTone(700, 0.4, 0.16)
+  tone(500, 900, 0.2, 'sine', 0.1)
+}
+
+/** スピードブースト発動: 素早く上昇するホイッスル音。 */
+export function playSpeedBoost(): void {
+  tone(500, 1600, 0.18, 'triangle', 0.16)
+}
+
+/** 連鎖ダメージ有効化: バチバチと弾ける電気的なノイズ+低いうなり。 */
+export function playChainDamage(): void {
+  noiseBurst(0.12, 0.14, 3200)
+  tone(150, 90, 0.22, 'square', 0.12)
 }

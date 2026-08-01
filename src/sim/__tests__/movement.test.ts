@@ -28,6 +28,10 @@ function makeLineState(seed: number, overrides?: Partial<GameState['config']>): 
       nextCenter: 0,
       nextRadius: 100,
     },
+    projectiles: [],
+    nextProjectileId: 0,
+    laserBeams: [],
+    nextLaserBeamId: 0,
   }
 }
 
@@ -43,6 +47,10 @@ function makeUnit(id: number, atNode: number): UnitState {
     destination: null,
     path: null,
     lastDamagedByTeamId: null,
+    ability: 'paintball',
+    abilityCooldownRemaining: 0,
+    abilityActiveTicksRemaining: 0,
+    abilityCommand: { type: 'none' },
   }
 }
 
@@ -235,6 +243,10 @@ describe('movement: shared-node prevention', () => {
         nextCenter: 0,
         nextRadius: 100,
       },
+      projectiles: [],
+      nextProjectileId: 0,
+      laserBeams: [],
+      nextLaserBeamId: 0,
     }
   }
 
@@ -269,6 +281,10 @@ describe('movement: shared-node prevention', () => {
         nextCenter: 0,
         nextRadius: 100,
       },
+      projectiles: [],
+      nextProjectileId: 0,
+      laserBeams: [],
+      nextLaserBeamId: 0,
     }
   }
 

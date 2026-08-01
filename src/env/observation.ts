@@ -1,7 +1,9 @@
-import type { GameState, UnitState } from '../sim'
+import type { AbilityKind, GameState, UnitState } from '../sim'
 import {
   DIRECTIONS,
   axialKey,
+  maxCooldownFor,
+  maxDurationFor,
   nodesInRadius,
   unitElevation,
   unitWorldPos,
@@ -10,6 +12,20 @@ import {
 } from '../sim'
 import type { Observation } from './types'
 import type { VisibleEnemy } from './visibility'
+
+/** ユーザー要望: 自身の装備アビリティ・視認中の敵の装備アビリティを、どちらも同じ5次元
+ * one-hotで観測に含める(順序はここで固定 — `sim/entities.ts`のランダム割り振り順とは独立)。 */
+const ABILITY_KIND_ORDER: readonly AbilityKind[] = [
+  'paintball',
+  'laser',
+  'damageShield',
+  'speedBoost',
+  'chainDamage',
+]
+
+function abilityOneHot(kind: AbilityKind): number[] {
+  return ABILITY_KIND_ORDER.map((k) => (k === kind ? 1 : 0))
+}
 
 /** ノードのq,rから配列インデックスを引くための索引。マップはtick中不変なので1回作れば使い回せる。 */
 export function buildNodeIndex(state: GameState): Map<string, number> {
@@ -73,6 +89,14 @@ export function buildObservation(
     selfNode.owner === null ? 1 : 0,
   ]
 
+  // ユーザー要望: 強化学習の行動空間にアビリティを組み込むにあたり、自身の装備アビリティの種類
+  // (5次元one-hot)・クールダウン残り(発動クールダウン設定値で正規化)・バフ効果残り
+  // (効果時間設定値で正規化、paintball/laserは常に0)を観測に加える。装備は生涯固定なのでこの
+  // one-hotは動かないが、行動マスク(§actions.ts)だけでは「なぜ他の発動先が常に非合法なのか」を
+  // 方策が学習しづらいため、明示的に特徴量として渡す。
+  const selfAbilityCooldownNorm = self.abilityCooldownRemaining / Math.max(1, maxCooldownFor(config, self.ability))
+  const selfAbilityActiveNorm = self.abilityActiveTicksRemaining / Math.max(1, maxDurationFor(config, self.ability))
+
   const selfFeatures = [
     ...relToCenter,
     ringRadiusNorm,
@@ -86,6 +110,9 @@ export function buildObservation(
     onNode ? 0 : self.pos.progress,
     ...directionOneHot,
     ...ownerOneHot,
+    ...abilityOneHot(self.ability),
+    selfAbilityCooldownNorm,
+    selfAbilityActiveNorm,
   ]
 
   // --- 味方 (unitsPerTeam - 1 スロット、ユニットID昇順で固定割り当て) ---
@@ -109,12 +136,14 @@ export function buildObservation(
   }
 
   // --- 視認中の敵 (上限N体、近い順・パディング) ---
+  // ユーザー要望: 各敵スロットに、その敵ユニットの装備アビリティ種別(5次元one-hot)を追加する
+  // (paintball/laserのように直線状に飛ぶ脅威は、種類が分かって初めて危険度を判断できるため)。
   const enemyFeatures: number[] = []
   const visibleEnemyIds: number[] = []
   for (let i = 0; i < config.maxVisibleEnemies; i++) {
     const entry = visibleEnemies[i]
     if (!entry) {
-      enemyFeatures.push(0, 0, 0, 0, 0)
+      enemyFeatures.push(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
       visibleEnemyIds.push(-1)
       continue
     }
@@ -125,6 +154,7 @@ export function buildObservation(
       entry.unit.hp / config.unitHP,
       unitElevation(state, entry.unit) - selfElevation,
       entry.dist <= config.attackRange ? 1 : 0,
+      ...abilityOneHot(entry.unit.ability),
     )
     visibleEnemyIds.push(entry.unit.id)
   }

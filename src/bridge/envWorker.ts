@@ -82,7 +82,7 @@ function handleInit(payload: InitPayload): InitResult {
 
   const obsDim = inferObsDim(state.simConfigOverrides, 0)
   const resolved = createConfig(state.simConfigOverrides)
-  return { obsDim, maxVisibleEnemies: resolved.maxVisibleEnemies, moveActions: 7 }
+  return { obsDim, maxVisibleEnemies: resolved.maxVisibleEnemies, moveActions: 7, abilityActions: 7 }
 }
 
 function handleReset(payload: ResetPayload): ResetResult {
@@ -117,7 +117,7 @@ function handleStep(payload: StepPayload): StepResultPayload {
     if (!slot) throw new Error(`step: env ${localEnvIndex} was never reset`)
 
     const actionMap: Record<number, ActionInput> = {}
-    for (const a of actions) actionMap[a.unitId] = { move: a.move, attack: a.attack }
+    for (const a of actions) actionMap[a.unitId] = { move: a.move, attack: a.attack, ability: a.ability }
 
     const stepResult = slot.env.step(actionMap)
     const resultEpisodeId = slot.episodeId

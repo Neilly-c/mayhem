@@ -37,8 +37,10 @@ class RolloutStep:
     obs: list[float]
     move_mask: list[bool]
     attack_mask: list[bool]
+    ability_mask: list[bool]
     move_action: int
     attack_action: int
+    ability_action: int
     old_log_prob: float
     value: float
     advantage: float
@@ -73,8 +75,12 @@ def run_ppo_update(
     attack_mask_t = torch.tensor(
         [[1.0 if b else 0.0 for b in s.attack_mask] for s in steps], dtype=torch.float32, device=device
     )
+    ability_mask_t = torch.tensor(
+        [[1.0 if b else 0.0 for b in s.ability_mask] for s in steps], dtype=torch.float32, device=device
+    )
     move_actions_t = torch.tensor([s.move_action for s in steps], dtype=torch.long, device=device)
     attack_actions_t = torch.tensor([s.attack_action for s in steps], dtype=torch.long, device=device)
+    ability_actions_t = torch.tensor([s.ability_action for s in steps], dtype=torch.long, device=device)
     old_log_prob_t = torch.tensor([s.old_log_prob for s in steps], dtype=torch.float32, device=device)
     old_value_t = torch.tensor([s.value for s in steps], dtype=torch.float32, device=device)
     returns_t = torch.tensor([s.return_ for s in steps], dtype=torch.float32, device=device)
@@ -99,20 +105,25 @@ def run_ppo_update(
             obs_slice = obs_t[idx_t]
             move_mask_slice = move_mask_t[idx_t]
             attack_mask_slice = attack_mask_t[idx_t]
+            ability_mask_slice = ability_mask_t[idx_t]
             move_actions_slice = move_actions_t[idx_t]
             attack_actions_slice = attack_actions_t[idx_t]
+            ability_actions_slice = ability_actions_t[idx_t]
             old_log_prob_slice = old_log_prob_t[idx_t]
             old_value_slice = old_value_t[idx_t]
             returns_slice = returns_t[idx_t]
             advantages_slice = advantages_t[idx_t]
 
-            move_logits, attack_logits, value = network(obs_slice)
+            move_logits, attack_logits, ability_logits, value = network(obs_slice)
             move_log_prob, move_entropy = evaluate_masked_categorical(move_logits, move_mask_slice, move_actions_slice)
             attack_log_prob, attack_entropy = evaluate_masked_categorical(
                 attack_logits, attack_mask_slice, attack_actions_slice
             )
-            new_log_prob = move_log_prob + attack_log_prob
-            entropy_per_sample = move_entropy + attack_entropy
+            ability_log_prob, ability_entropy = evaluate_masked_categorical(
+                ability_logits, ability_mask_slice, ability_actions_slice
+            )
+            new_log_prob = move_log_prob + attack_log_prob + ability_log_prob
+            entropy_per_sample = move_entropy + attack_entropy + ability_entropy
 
             ratio = (new_log_prob - old_log_prob_slice).exp()
             surr1 = ratio * advantages_slice

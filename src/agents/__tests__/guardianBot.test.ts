@@ -19,6 +19,10 @@ function makeUnit(id: number, teamId: number, atNode: number, hp = 100): UnitSta
     destination: null,
     path: null,
     lastDamagedByTeamId: null,
+    ability: 'paintball',
+    abilityCooldownRemaining: 0,
+    abilityActiveTicksRemaining: 0,
+    abilityCommand: { type: 'none' },
   }
 }
 
@@ -33,7 +37,7 @@ function makeState(nodes: NodeState[], units: UnitState[], overrides?: Partial<G
   return {
     seed: 1,
     tick: 0,
-    config: createConfig({ visionRange: 100, attackRange: 2, ...overrides }),
+    config: createConfig({ visionCoreRadius: 100, attackRange: 2, ...overrides }),
     nodes,
     neighbors,
     teams: [
@@ -51,6 +55,10 @@ function makeState(nodes: NodeState[], units: UnitState[], overrides?: Partial<G
       nextCenter: 0,
       nextRadius: 100,
     },
+    projectiles: [],
+    nextProjectileId: 0,
+    laserBeams: [],
+    nextLaserBeamId: 0,
   }
 }
 

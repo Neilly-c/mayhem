@@ -39,7 +39,7 @@ def test_step_advances_every_env_and_merges_results_back_to_global_indices(pool:
     reset_result = pool.reset({0: 10, 1: 11, 2: 12, 3: 13})
 
     actions = {
-        global_index: [{"unitId": a["unitId"], "move": 0, "attack": 0} for a in env["agents"]]
+        global_index: [{"unitId": a["unitId"], "move": 0, "attack": 0, "ability": 0} for a in env["agents"]]
         for global_index, env in reset_result.items()
     }
     step_result = pool.step(actions)
@@ -61,7 +61,7 @@ def test_resolve_sim_config_matches_across_workers(pool: WorkerPool):
 def test_partial_reset_only_touches_the_requested_envs(pool: WorkerPool):
     first = pool.reset({0: 1, 1: 2, 2: 3, 3: 4})
     # Advance env 0 a few ticks so its state differs from a fresh reset.
-    actions = {0: [{"unitId": a["unitId"], "move": 0, "attack": 0} for a in first[0]["agents"]]}
+    actions = {0: [{"unitId": a["unitId"], "move": 0, "attack": 0, "ability": 0} for a in first[0]["agents"]]}
     pool.step(actions)
 
     # Resetting only env 2 must not raise and must return exactly that env.

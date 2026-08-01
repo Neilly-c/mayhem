@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs'
-import type { GameState } from '../sim'
+import type { AbilityKind, GameState } from '../sim'
 import { buildActionMask, buildNodeIndex, buildObservation, computeVisibleEnemies, decodeAction } from '../env'
 import type { DecisionSource, UnitDecision } from '../agents'
 
@@ -66,10 +66,11 @@ export function createBrowserPolicyDecisionSource(model: tf.LayersModel): Decisi
     if (unitIds.length === 0) return decisions
 
     const nodeIndex = buildNodeIndex(state)
-    const entries: { unitId: number; posTo: number; visibleEnemyIds: number[] }[] = []
+    const entries: { unitId: number; posTo: number; visibleEnemyIds: number[]; ability: AbilityKind }[] = []
     const obsRows: number[][] = []
     const moveMaskRows: number[][] = []
     const attackMaskRows: number[][] = []
+    const abilityMaskRows: number[][] = []
 
     for (const unitId of unitIds) {
       const unit = state.units.find((u) => u.id === unitId)
@@ -77,30 +78,39 @@ export function createBrowserPolicyDecisionSource(model: tf.LayersModel): Decisi
       const visibleEnemies = computeVisibleEnemies(state, unit)
       const observation = buildObservation(state, unit, visibleEnemies, nodeIndex)
       const mask = buildActionMask(state, unit, visibleEnemies)
-      entries.push({ unitId, posTo: unit.pos.to, visibleEnemyIds: observation.visibleEnemyIds })
+      entries.push({ unitId, posTo: unit.pos.to, visibleEnemyIds: observation.visibleEnemyIds, ability: unit.ability })
       obsRows.push(observation.vector)
       moveMaskRows.push(mask.move.map((b) => (b ? 1 : 0)))
       attackMaskRows.push(mask.attack.map((b) => (b ? 1 : 0)))
+      abilityMaskRows.push(mask.ability.map((b) => (b ? 1 : 0)))
     }
     if (entries.length === 0) return decisions
 
-    const { moveActions, attackActions } = tf.tidy(() => {
+    const { moveActions, attackActions, abilityActions } = tf.tidy(() => {
       const obsT = tf.tensor2d(obsRows)
       const moveMaskT = tf.tensor2d(moveMaskRows)
       const attackMaskT = tf.tensor2d(attackMaskRows)
-      const [moveLogits, attackLogits] = model.apply(obsT) as tf.Tensor2D[]
+      const abilityMaskT = tf.tensor2d(abilityMaskRows)
+      const [moveLogits, attackLogits, abilityLogits] = model.apply(obsT) as tf.Tensor2D[]
       const moveA = argmaxMaskedCategorical(moveLogits, moveMaskT)
       const attackA = argmaxMaskedCategorical(attackLogits, attackMaskT)
-      return { moveActions: Array.from(moveA.dataSync()), attackActions: Array.from(attackA.dataSync()) }
+      const abilityA = argmaxMaskedCategorical(abilityLogits, abilityMaskT)
+      return {
+        moveActions: Array.from(moveA.dataSync()),
+        attackActions: Array.from(attackA.dataSync()),
+        abilityActions: Array.from(abilityA.dataSync()),
+      }
     })
 
     entries.forEach((entry, i) => {
-      const { command, attackTarget } = decodeAction(
-        { move: moveActions[i], attack: attackActions[i] },
+      const { command, attackTarget, abilityCommand } = decodeAction(
+        { move: moveActions[i], attack: attackActions[i], ability: abilityActions[i] },
         entry.posTo,
         entry.visibleEnemyIds,
+        entry.ability,
+        state.config,
       )
-      decisions.set(entry.unitId, { command, attackTarget })
+      decisions.set(entry.unitId, { command, attackTarget, abilityCommand })
     })
 
     return decisions

@@ -63,10 +63,10 @@ describe('envWorker determinism', () => {
   it('produces results identical to driving Env directly in-process, given the same seed/config/action sequence', async () => {
     const seed = 7
     const fixedActions: ActionInput[] = [
-      { move: 1, attack: 0 },
-      { move: 2, attack: 0 },
-      { move: 0, attack: 0 },
-      { move: 4, attack: 0 },
+      { move: 1, attack: 0, ability: 0 },
+      { move: 2, attack: 0, ability: 0 },
+      { move: 0, attack: 0, ability: 0 },
+      { move: 4, attack: 0, ability: 0 },
     ]
 
     // Reference: drive Env directly, in-process, no bridge involved.
@@ -98,7 +98,12 @@ describe('envWorker determinism', () => {
           envs: [
             {
               localEnvIndex: 0,
-              actions: agents.map((a) => ({ unitId: a.unitId, move: action.move, attack: action.attack })),
+              actions: agents.map((a) => ({
+                unitId: a.unitId,
+                move: action.move,
+                attack: action.attack,
+                ability: action.ability,
+              })),
             },
           ],
         })

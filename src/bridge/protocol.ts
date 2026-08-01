@@ -29,6 +29,8 @@ export interface InitResult {
   obsDim: number
   maxVisibleEnemies: number
   moveActions: 7
+  /** ユーザー要望: アビリティ発動ヘッドのサイズ(`src/train/network.ts`のABILITY_ACTIONS)。 */
+  abilityActions: 7
 }
 
 export interface ResetPayload {
@@ -47,6 +49,7 @@ export interface StepActionEntry {
   unitId: number
   move: number
   attack: number
+  ability: number
 }
 export interface StepPayloadEnv {
   localEnvIndex: number

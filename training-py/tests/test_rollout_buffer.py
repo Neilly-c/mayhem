@@ -5,7 +5,7 @@ import pytest
 import torch
 
 from mayhem_rl.bridge.worker_pool import WorkerPool
-from mayhem_rl.network import MOVE_ACTIONS, ActorCriticNetwork
+from mayhem_rl.network import ABILITY_ACTIONS, MOVE_ACTIONS, ActorCriticNetwork
 from mayhem_rl.rollout_buffer import collect_rollout, create_rollout_state
 
 SIM_CONFIG = {
@@ -33,9 +33,12 @@ def test_produces_a_well_formed_batch_with_finite_values_no_nans():
             assert len(step.obs) == pool.obs_dim
             assert len(step.move_mask) == MOVE_ACTIONS
             assert len(step.attack_mask) == pool.max_visible_enemies + 1
+            assert len(step.ability_mask) == ABILITY_ACTIONS
             assert step.move_mask[0] is True  # idle always legal
+            assert step.ability_mask[0] is True  # "do nothing" always legal
             assert 0 <= step.move_action < MOVE_ACTIONS
             assert 0 <= step.attack_action <= pool.max_visible_enemies
+            assert 0 <= step.ability_action < ABILITY_ACTIONS
             assert math.isfinite(step.old_log_prob)
             assert math.isfinite(step.value)
             assert math.isfinite(step.advantage)
